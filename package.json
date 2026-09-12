@@ -1,0 +1,30 @@
+{
+  "name": "zenwave-architectural-vistas",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "packageManager": "pnpm@10.34.5",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "build": "pnpm -r --if-present build",
+    "build:eventflow-webview": "pnpm --filter @zenwave360/vistas-eventflow-webview build",
+    "check": "pnpm -r --if-present check",
+    "test": "pnpm -r --if-present test",
+    "sync:intellij": "pnpm run build:eventflow-webview && node scripts/sync-eventflow-webview.mjs",
+    "sync:intellij:dry-run": "pnpm run build:eventflow-webview && node scripts/sync-eventflow-webview.mjs --dry-run",
+    "changeset": "changeset",
+    "version-packages": "changeset version"
+  },
+  "devDependencies": {
+    "@changesets/cli": "^2.29.7",
+    "@types/node": "^25.5.0",
+    "typescript": "^5.3.3"
+  },
+  "pnpm": {
+    "onlyBuiltDependencies": [
+      "esbuild"
+    ]
+  }
+}

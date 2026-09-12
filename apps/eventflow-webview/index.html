@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>EventFlow Visualizer</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        html, body {
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+        }
+
+        #root {
+            width: 100%;
+            height: 100%;
+        }
+
+        .loading {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            height: 100vh;
+            font-size: 16px;
+            color: #666;
+        }
+    </style>
+</head>
+<body>
+    <div id="root">
+        <div class="loading">Loading EventFlow Visualizer...</div>
+    </div>
+    <script>
+        window.__eventFlowPendingMessages = [];
+
+        window.addEventListener("message", (event) => {
+            const msg = event.data;
+
+            if (!msg || typeof msg.type !== "string") {
+                return;
+            }
+
+            if (msg.type === "renderBundle") {
+                if (typeof window.renderBundle === "function") {
+                    window.renderBundle({
+                        flowGraph: msg.payload?.flowGraph ?? null,
+                        serviceGraph: msg.payload?.serviceGraph ?? null,
+                        viewMode: msg.payload?.viewMode,
+                        displaySettings: msg.payload?.displaySettings,
+                    });
+                } else {
+                    window.__eventFlowPendingMessages.push(msg);
+                }
+            }
+
+            if (msg.type === "setViewMode") {
+                if (typeof window.setViewMode === "function") {
+                    window.setViewMode(msg.payload?.viewMode);
+                } else {
+                    window.__eventFlowPendingMessages.push(msg);
+                }
+            }
+
+            if (msg.type === "setDisplaySettings") {
+                if (typeof window.setDisplaySettings === "function") {
+                    window.setDisplaySettings(msg.payload?.displaySettings ?? {});
+                } else {
+                    window.__eventFlowPendingMessages.push(msg);
+                }
+            }
+
+            if (msg.type === "highlightNode") {
+                if (typeof window.highlightNode === "function") {
+                    window.highlightNode(msg.payload?.nodeId ?? null);
+                } else {
+                    window.__eventFlowPendingMessages.push(msg);
+                }
+            }
+
+            if (msg.type === "renderGraph") {
+                window.__eventFlowPendingMessages.push({
+                    type: "renderBundle",
+                    payload: {
+                        flowGraph: msg.payload?.graph ?? null,
+                        viewMode: "flow",
+                    }
+                });
+            }
+        });
+
+        window.addEventListener("load", () => {
+            window.parent.postMessage({
+                type: "webviewReady"
+            }, "*");
+        });
+    </script>
+    <script type="module" src="./src/main.tsx"></script>
+</body>
+</html>

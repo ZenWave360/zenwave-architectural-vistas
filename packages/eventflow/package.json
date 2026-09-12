@@ -1,0 +1,54 @@
+{
+  "name": "@zenwave360/vistas-eventflow",
+  "version": "0.1.0",
+  "description": "React visualizers and contracts for ZenWave ZFL event-flow and service-map diagrams",
+  "type": "module",
+  "sideEffects": [
+    "**/*.css"
+  ],
+  "files": [
+    "dist",
+    "README.md",
+    "event-flow-architecture-and-contracts.md",
+    "FLOWVIEWMODEL_EXAMPLES.md"
+  ],
+  "main": "./dist/index.js",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    },
+    "./react": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    },
+    "./styles.css": "./dist/styles.css",
+    "./package.json": "./package.json"
+  },
+  "scripts": {
+    "build": "vite build --configLoader runner && tsc -p tsconfig.build.json",
+    "check": "tsc --noEmit -p tsconfig.json"
+  },
+  "dependencies": {
+    "@reactflow/node-resizer": "^2.2.14",
+    "reactflow": "^11.10.4"
+  },
+  "peerDependencies": {
+    "react": ">=18.2.0 <20",
+    "react-dom": ">=18.2.0 <20"
+  },
+  "devDependencies": {
+    "@types/react": "^18.2.55",
+    "@types/react-dom": "^18.2.19",
+    "@vitejs/plugin-react": "^5.1.2",
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0",
+    "typescript": "^5.3.3",
+    "vite": "^7.3.0"
+  },
+  "publishConfig": {
+    "access": "public"
+  }
+}

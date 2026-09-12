@@ -1,0 +1,392 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>EventFlow Visualizer - Test</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .toolbar {
+            background: #f5f5f5;
+            border-bottom: 1px solid #ddd;
+            padding: 10px 20px;
+            display: flex;
+            gap: 10px;
+            align-items: center;
+        }
+
+        .toolbar button {
+            padding: 8px 16px;
+            background: #3b82f6;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+        }
+
+        .toolbar button:hover {
+            background: #2563eb;
+        }
+
+        .toolbar button.secondary {
+            background: #64748b;
+        }
+
+        .toolbar button.secondary:hover {
+            background: #475569;
+        }
+
+        .toolbar button:disabled {
+            background: #cbd5e1;
+            cursor: not-allowed;
+        }
+
+        .status {
+            margin-left: auto;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            font-size: 12px;
+            color: #666;
+        }
+
+        .dirty-indicator {
+            display: none;
+            padding: 4px 8px;
+            border-radius: 999px;
+            background: #fef3c7;
+            color: #92400e;
+            font-weight: 600;
+        }
+
+        .dirty-indicator.visible {
+            display: inline-flex;
+        }
+
+        .container {
+            display: flex;
+            flex: 1;
+            overflow: hidden;
+        }
+
+        .input-panel {
+            width: 400px;
+            background: #fafafa;
+            border-right: 1px solid #ddd;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .input-panel h3 {
+            padding: 15px;
+            background: #e5e7eb;
+            border-bottom: 1px solid #ddd;
+            font-size: 14px;
+            font-weight: 600;
+        }
+
+        .input-panel textarea {
+            flex: 1;
+            padding: 15px;
+            border: none;
+            font-family: 'Courier New', monospace;
+            font-size: 12px;
+            resize: none;
+            outline: none;
+        }
+
+        .error {
+            padding: 10px 15px;
+            background: #fee;
+            color: #c00;
+            border-top: 1px solid #fcc;
+            font-size: 12px;
+        }
+
+        .viewer-container {
+            flex: 1;
+            position: relative;
+        }
+
+        #root {
+            width: 100%;
+            height: 100%;
+        }
+    </style>
+</head>
+<body>
+    <div class="toolbar">
+        <button onclick="loadJSON()">Load JSON</button>
+        <button onclick="loadSample()" class="secondary">Load Sample</button>
+        <label for="viewTypeSelect">View</label>
+        <select id="viewTypeSelect">
+            <option value="auto">Auto</option>
+            <option value="flow">Flow</option>
+            <option value="services">Services</option>
+        </select>
+        <button onclick="resetLayout()" class="secondary" id="resetButton" disabled>Reset Layout</button>
+        <button onclick="downloadLayoutJSON()" class="secondary" id="downloadButton" disabled>Download Layout JSON</button>
+        <button onclick="clearViewer()" class="secondary">Clear</button>
+        <button onclick="toggleHumanizedLabels()" class="secondary" id="humanizeButton">Humanized Labels: On</button>
+        <button onclick="toggleTheme()" class="secondary">Toggle Theme</button>
+        <div class="status">
+            <span id="dirtyIndicator" class="dirty-indicator">Layout modified</span>
+            <span>Paste flow or services JSON, drag nodes, then download the updated layout</span>
+        </div>
+    </div>
+
+    <div class="container">
+        <div class="input-panel">
+            <h3>Diagram JSON</h3>
+            <textarea id="jsonInput" placeholder="Paste your FlowViewModel or ServiceViewModel JSON here..."></textarea>
+            <div id="error" class="error" style="display: none;"></div>
+        </div>
+
+        <div class="viewer-container">
+            <div id="root"></div>
+        </div>
+    </div>
+
+    <script type="module">
+        import { createRoot } from 'react-dom/client';
+        import { createElement, useState } from 'react';
+        import { EventFlowVisualizer, ServiceMapVisualizer } from '@zenwave360/vistas-eventflow/react';
+
+        let currentTheme = 'light';
+        let currentHumanizeLabels = true;
+        let loadedDiagramData = null;
+        let currentEditedDiagramData = null;
+        let loadedDiagramJSON = '';
+        let currentViewMode = 'flow';
+
+        function cloneDiagramData(data) {
+            return JSON.parse(JSON.stringify(data));
+        }
+
+        function detectViewMode(data) {
+            if (data?.schema === 'zfl.services.view@1') {
+                return 'services';
+            }
+            return 'flow';
+        }
+
+        function selectedViewMode() {
+            const selected = document.getElementById('viewTypeSelect').value;
+            return selected === 'auto' ? null : selected;
+        }
+
+        function updateDirtyState() {
+            const dirtyIndicator = document.getElementById('dirtyIndicator');
+            const downloadButton = document.getElementById('downloadButton');
+            const resetButton = document.getElementById('resetButton');
+            const isDirty = Boolean(loadedDiagramData && currentEditedDiagramData &&
+                JSON.stringify(loadedDiagramData) !== JSON.stringify(currentEditedDiagramData));
+
+            dirtyIndicator.classList.toggle('visible', isDirty);
+            downloadButton.disabled = !currentEditedDiagramData;
+            resetButton.disabled = !loadedDiagramData || !isDirty;
+        }
+
+        function App() {
+            const [diagramData, setDiagramData] = useState(null);
+            const [viewMode, setViewMode] = useState('flow');
+            const [theme, setTheme] = useState('light');
+            const [humanizeLabels, setHumanizeLabels] = useState(true);
+
+            window.updateDiagram = (data, nextViewMode) => {
+                setDiagramData(data);
+                setViewMode(nextViewMode);
+            };
+            window.updateTheme = (nextTheme) => setTheme(nextTheme);
+            window.updateHumanizeLabels = (nextValue) => setHumanizeLabels(nextValue);
+
+            if (!diagramData) {
+                return createElement('div', {
+                    style: {
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        height: '100%',
+                        color: '#666',
+                        fontSize: '14px'
+                    }
+                }, 'Paste JSON and click "Load JSON" to visualize');
+            }
+
+            if (viewMode === 'services') {
+                return createElement(ServiceMapVisualizer, {
+                    serviceViewModel: diagramData,
+                    theme,
+                    editable: true,
+                    displaySettings: {
+                        humanizeLabels
+                    },
+                    onServiceViewModelChange: (updatedServiceViewModel) => {
+                        currentEditedDiagramData = updatedServiceViewModel;
+                        updateDirtyState();
+                    }
+                });
+            }
+
+            return createElement(EventFlowVisualizer, {
+                flowViewModel: diagramData,
+                theme,
+                displaySettings: {
+                    humanizeLabels
+                },
+                onNodeClick: (nodeId, sourceRef) => {
+                    console.log('Node clicked:', nodeId, sourceRef);
+                },
+                onFlowViewModelChange: (updatedFlowViewModel) => {
+                    currentEditedDiagramData = updatedFlowViewModel;
+                    updateDirtyState();
+                }
+            });
+        }
+
+        const root = document.getElementById('root');
+        const appRoot = createRoot(root);
+        appRoot.render(createElement(App));
+
+        window.loadJSON = function() {
+            const input = document.getElementById('jsonInput').value.trim();
+            const errorEl = document.getElementById('error');
+
+            if (!input) {
+                errorEl.textContent = 'Please paste JSON first';
+                errorEl.style.display = 'block';
+                return;
+            }
+
+            try {
+                const data = JSON.parse(input);
+                currentViewMode = selectedViewMode() ?? detectViewMode(data);
+                loadedDiagramJSON = input;
+                loadedDiagramData = cloneDiagramData(data);
+                currentEditedDiagramData = cloneDiagramData(data);
+                errorEl.style.display = 'none';
+                updateDirtyState();
+                window.updateDiagram(cloneDiagramData(data), currentViewMode);
+            } catch (e) {
+                errorEl.textContent = 'Invalid JSON: ' + e.message;
+                errorEl.style.display = 'block';
+            }
+        };
+
+        window.loadSample = function() {
+            const flowSample = {
+                schema: "zfl.eventflow.view@1",
+                nodes: [
+                    { id: "event:CustomerRequestsSubscriptionRenewal", type: "START", label: "CustomerRequestsSubscriptionRenewal", position: { x: 40, y: 200 }, dimensions: { width: 100, height: 100 }, system: null, service: null, sourceRef: { file: "flow.zfl", line: 1, column: 1 } },
+                    { id: "command:renewSubscription", type: "COMMAND", label: "renewSubscription", position: { x: 220, y: 220 }, dimensions: { width: 180, height: 64 }, system: "Subscription", service: "SubscriptionService", sourceRef: { file: "flow.zfl", line: 3, column: 1 } },
+                    { id: "event:SubscriptionRenewed", type: "EVENT", label: "SubscriptionRenewed", position: { x: 480, y: 228 }, dimensions: { width: 180, height: 52 }, system: "Subscription", service: "SubscriptionService", sourceRef: { file: "flow.zfl", line: 5, column: 1 } },
+                    { id: "policy:SubscriptionRenewed:chargePayment", type: "POLICY", label: "when SubscriptionRenewed do chargePayment", position: { x: 760, y: 216 }, dimensions: { width: 240, height: 72 }, system: null, service: null, sourceRef: { file: "flow.zfl", line: 7, column: 1 } },
+                    { id: "command:chargePayment", type: "COMMAND", label: "chargePayment", position: { x: 1080, y: 220 }, dimensions: { width: 180, height: 64 }, system: "Payments", service: "PaymentService", sourceRef: { file: "flow.zfl", line: 9, column: 1 } },
+                    { id: "event:PaymentCaptured", type: "EVENT", label: "PaymentCaptured", position: { x: 1440, y: 120 }, dimensions: { width: 180, height: 52 }, system: "Payments", service: "PaymentService", sourceRef: { file: "flow.zfl", line: 11, column: 1 } },
+                    { id: "event:ReceiptEmailed", type: "EVENT", label: "ReceiptEmailed", position: { x: 1440, y: 260 }, dimensions: { width: 180, height: 52 }, system: "Notifications", service: "NotificationService", sourceRef: { file: "flow.zfl", line: 12, column: 1 } },
+                    { id: "event:PaymentFailed", type: "EVENT", label: "PaymentFailed", position: { x: 1440, y: 400 }, dimensions: { width: 180, height: 52 }, system: "Payments", service: "PaymentService", sourceRef: { file: "flow.zfl", line: 13, column: 1 } }
+                ],
+                edges: [
+                    { id: "e1", source: "event:CustomerRequestsSubscriptionRenewal", target: "command:renewSubscription", type: "TRIGGER", outcome: null, label: null, sourceRef: null },
+                    { id: "e2", source: "command:renewSubscription", target: "event:SubscriptionRenewed", type: "CAUSATION", outcome: null, label: null, sourceRef: null },
+                    { id: "e3", source: "event:SubscriptionRenewed", target: "policy:SubscriptionRenewed:chargePayment", type: "TRIGGER", outcome: null, label: null, sourceRef: null },
+                    { id: "e4", source: "policy:SubscriptionRenewed:chargePayment", target: "command:chargePayment", type: "TRIGGER", outcome: null, label: null, sourceRef: null },
+                    { id: "e5", source: "command:chargePayment", target: "event:PaymentCaptured", type: "CAUSATION", outcome: "authorized", label: null, sourceRef: null },
+                    { id: "e6", source: "command:chargePayment", target: "event:ReceiptEmailed", type: "CAUSATION", outcome: "authorized", label: null, sourceRef: null },
+                    { id: "e7", source: "command:chargePayment", target: "event:PaymentFailed", type: "CAUSATION", outcome: "failed", label: null, sourceRef: null }
+                ],
+                systemGroups: null,
+                layout: { engine: "elk-layered", direction: "LR", rankSpacing: 180, nodeSpacing: 80 },
+                bounds: { x: 0, y: 0, width: 1900, height: 620 }
+            };
+
+            const servicesSample = {
+                schema: "zfl.services.view@1",
+                groups: [
+                    { id: "group:Orders", label: "Orders", path: "Orders", position: { x: 40, y: 40 }, dimensions: { width: 540, height: 332 } },
+                    { id: "group:Payments>Authorization", label: "Payments\nAuthorization", path: "Payments/Authorization", position: { x: 652, y: 40 }, dimensions: { width: 540, height: 332 } }
+                ],
+                nodes: [
+                    { id: "command:createOrder", type: "COMMAND", label: "createOrder", groupId: "group:Orders", system: "Orders", service: null, servicePath: "Orders", sourceRef: { file: "flow.zfl", line: 3, column: 1 }, position: { x: 64, y: 112 }, dimensions: { width: 156, height: 92 } },
+                    { id: "event:OrderCreated@Orders", type: "EVENT", label: "OrderCreated", groupId: "group:Orders", system: "Orders", service: null, servicePath: "Orders", sourceRef: { file: "flow.zfl", line: 5, column: 1 }, position: { x: 400, y: 112 }, dimensions: { width: 156, height: 92 } },
+                    { id: "command:authorizePayment", type: "COMMAND", label: "authorizePayment", groupId: "group:Payments>Authorization", system: "Payments", service: "Authorization", servicePath: "Payments/Authorization/Payment", sourceRef: { file: "flow.zfl", line: 7, column: 1 }, position: { x: 676, y: 112 }, dimensions: { width: 156, height: 92 } },
+                    { id: "event:PaymentAuthorized@Payments>Authorization", type: "EVENT", label: "PaymentAuthorized", groupId: "group:Payments>Authorization", system: "Payments", service: "Authorization", servicePath: "Payments/Authorization/Payment", sourceRef: { file: "flow.zfl", line: 9, column: 1 }, position: { x: 1012, y: 112 }, dimensions: { width: 156, height: 92 } }
+                ],
+                layout: { engine: "zfl-services-grid", direction: "LR", rankSpacing: 80, nodeSpacing: 20 },
+                bounds: { x: 0, y: 0, width: 1232, height: 420 }
+            };
+
+            const sample = selectedViewMode() === 'services' ? servicesSample : flowSample;
+
+            document.getElementById('jsonInput').value = JSON.stringify(sample, null, 2);
+            window.loadJSON();
+        };
+
+        window.downloadLayoutJSON = function() {
+            if (!currentEditedDiagramData) {
+                return;
+            }
+
+            const blob = new Blob([JSON.stringify(currentEditedDiagramData, null, 2)], {
+                type: 'application/json'
+            });
+            const url = URL.createObjectURL(blob);
+            const anchor = document.createElement('a');
+            anchor.href = url;
+            anchor.download = 'flow-layout.json';
+            document.body.appendChild(anchor);
+            anchor.click();
+            document.body.removeChild(anchor);
+            URL.revokeObjectURL(url);
+        };
+
+        window.resetLayout = function() {
+            if (!loadedDiagramData) {
+                return;
+            }
+
+            document.getElementById('jsonInput').value = loadedDiagramJSON;
+            document.getElementById('error').style.display = 'none';
+            currentEditedDiagramData = cloneDiagramData(loadedDiagramData);
+            updateDirtyState();
+            window.updateDiagram(cloneDiagramData(loadedDiagramData), currentViewMode);
+        };
+
+        window.clearViewer = function() {
+            document.getElementById('jsonInput').value = '';
+            document.getElementById('error').style.display = 'none';
+            loadedDiagramData = null;
+            currentEditedDiagramData = null;
+            loadedDiagramJSON = '';
+            updateDirtyState();
+            window.updateDiagram(null, 'flow');
+        };
+
+        window.toggleTheme = function() {
+            currentTheme = currentTheme === 'light' ? 'dark' : 'light';
+            window.updateTheme(currentTheme);
+        };
+
+        window.toggleHumanizedLabels = function() {
+            currentHumanizeLabels = !currentHumanizeLabels;
+            document.getElementById('humanizeButton').textContent = `Humanized Labels: ${currentHumanizeLabels ? 'On' : 'Off'}`;
+            window.updateHumanizeLabels(currentHumanizeLabels);
+        };
+
+        updateDirtyState();
+    </script>
+</body>
+</html>

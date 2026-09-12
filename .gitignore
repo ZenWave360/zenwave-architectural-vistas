@@ -1,0 +1,26 @@
+node_modules/
+.pnpm-store/
+dist/
+.astro/
+.eventcatalog-core/
+.idea/
+*.log
+.DS_Store
+.env
+.env.*
+!.env.example
+
+# Agent tooling — untracked in every other ZenWave repo, and ignored
+# explicitly in ZenWaveDomainModelEditor. Listed here so the first
+# `git add -A` on this repo does not sweep them into the initial commit.
+.serena/
+.codex/
+
+# TypeScript incremental build state (tsc -p tsconfig.build.json)
+*.tsbuildinfo
+
+# Test output
+coverage/
+
+# Windows
+Thumbs.db

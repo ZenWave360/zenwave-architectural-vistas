@@ -1,0 +1,443 @@
+name: Release
+
+# Manual release for public @zenwave360 packages.
+#
+# Security model follows ZenWave360/release-workflows:
+#   - Dispatch from main only. github.sha is the trusted commit, captured once.
+#   - validate is secretless and read-only.
+#   - prepare-release has contents/PR write and no npm credentials. It never
+#     pushes directly to main: it opens a throwaway release/* branch and merges
+#     a PR (main's required-PR ruleset needs no bypass actor).
+#   - publish-npm is gated by this repository's `npm-publish` environment
+#     (required reviewer, deployments restricted to main). Publication uses
+#     OIDC trusted publishing (id-token: write). There is no NPM_TOKEN.
+#   - Human gateway: packages are published with `--tag next`, not `latest`.
+#     `npm install pkg` keeps serving the previous latest until a person with
+#     2FA runs `npm dist-tag add <pkg>@<version> latest`.
+#   - First publish of a new package is manual. OIDC trusted publishing cannot
+#     create a package that does not already exist on the registry.
+#
+# Versions come from pending Changesets on main, not from typed version inputs.
+# Select one public package or `all` packages that have pending changesets.
+# There is no develop branch and no snapshot publication.
+
+on:
+  workflow_dispatch:
+    inputs:
+      package:
+        description: "Package to release from pending changesets, or all pending public packages"
+        required: true
+        type: choice
+        default: all
+        options:
+          - all
+          - "@zenwave360/vistas-eventflow"
+          - "@zenwave360/eventcatalog-components"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-${{ github.repository }}
+  cancel-in-progress: false
+
+jobs:
+  validate:
+    name: Validate pending changesets and duplicate protection
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+    outputs:
+      release_sha: ${{ steps.capture.outputs.release_sha }}
+      packages: ${{ steps.capture.outputs.packages }}
+      summary: ${{ steps.capture.outputs.summary }}
+      branch_suffix: ${{ steps.capture.outputs.branch_suffix }}
+    steps:
+      - name: Require dispatch from the default branch (main)
+        if: github.ref != 'refs/heads/main'
+        run: |
+          echo "::error::Release must be dispatched from 'main'. Got '${GITHUB_REF}'."
+          exit 1
+
+      - name: Checkout trusted main commit
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+          fetch-tags: true
+          persist-credentials: false
+
+      - name: Setup Node.js and pnpm
+        uses: ./.github/actions/setup-pnpm
+
+      - name: Install (no lifecycle scripts)
+        run: pnpm install --frozen-lockfile --ignore-scripts
+
+      - name: Plan release from pending changesets
+        id: capture
+        env:
+          PACKAGE: ${{ inputs.package }}
+          RELEASE_SHA: ${{ github.sha }}
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+
+          if ! git merge-base --is-ancestor "${RELEASE_SHA}" origin/main; then
+            echo "::error::Captured commit ${RELEASE_SHA} is not reachable from origin/main."
+            exit 1
+          fi
+
+          pnpm exec changeset status --output "${RUNNER_TEMP}/changeset-status.json"
+          node scripts/release-packages.mjs plan \
+            --package "${PACKAGE}" \
+            --status "${RUNNER_TEMP}/changeset-status.json" \
+            --out "${RUNNER_TEMP}/release-plan.json"
+
+          echo "release_sha=${RELEASE_SHA}" >> "${GITHUB_OUTPUT}"
+
+          {
+            echo "### Release plan"
+            echo "- Trusted main commit: \`${RELEASE_SHA}\`"
+            echo "- Selection: \`${PACKAGE}\`"
+            jq -r '.releases[] | "- `\(.name)` `\(.oldVersion)` → `\(.version)` (tag `\(.tag)`)"' \
+              "${RUNNER_TEMP}/release-plan.json"
+          } >> "${GITHUB_STEP_SUMMARY}"
+
+          while IFS= read -r row; do
+            NAME="$(jq -er '.name' <<< "${row}")"
+            VERSION="$(jq -er '.version' <<< "${row}")"
+            TAG="$(jq -er '.tag' <<< "${row}")"
+
+            if [[ ! "${VERSION}" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?$ ]]; then
+              echo "::error::${NAME} new version '${VERSION}' is not a valid semver."
+              exit 1
+            fi
+
+            if git rev-parse -q --verify "refs/tags/${TAG}" >/dev/null; then
+              echo "::error::Tag ${TAG} already exists locally."
+              exit 1
+            fi
+            if git ls-remote --exit-code --tags origin "refs/tags/${TAG}" >/dev/null 2>&1; then
+              echo "::error::Tag ${TAG} already exists on origin."
+              exit 1
+            fi
+            if gh release view "${TAG}" >/dev/null 2>&1; then
+              echo "::error::GitHub release ${TAG} already exists."
+              exit 1
+            fi
+
+            NPM_PACKAGE_URLENC="$(printf '%s' "${NAME}" | sed 's#/#%2F#g')"
+            NPM_META_FILE="$(mktemp)"
+            NPM_CODE="$(curl -sS -o "${NPM_META_FILE}" -w '%{http_code}' \
+              "https://registry.npmjs.org/${NPM_PACKAGE_URLENC}")"
+            if [[ "${NPM_CODE}" != "200" ]]; then
+              echo "::error::${NAME} does not exist on registry.npmjs.org (HTTP ${NPM_CODE})."
+              echo "::error::OIDC trusted publishing requires an existing package: the FIRST publish is manual."
+              exit 1
+            fi
+            if ! jq --arg v "${VERSION}" -e '.versions[$v] | not' "${NPM_META_FILE}" >/dev/null; then
+              echo "::error::${NAME}@${VERSION} is already published on npm."
+              exit 1
+            fi
+            rm -f "${NPM_META_FILE}"
+          done < <(jq -c '.releases[]' "${RUNNER_TEMP}/release-plan.json")
+
+  prepare-release:
+    name: Create release commit and tags
+    needs: validate
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: write
+      pull-requests: write
+    outputs:
+      release_commit_sha: ${{ steps.commit.outputs.release_commit_sha }}
+    steps:
+      - name: Checkout trusted main commit
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          ref: ${{ needs.validate.outputs.release_sha }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Refuse a stale release branch
+        env:
+          BRANCH_SUFFIX: ${{ needs.validate.outputs.branch_suffix }}
+        run: |
+          set -euo pipefail
+          if git ls-remote --exit-code --heads origin "release/${BRANCH_SUFFIX}" >/dev/null 2>&1; then
+            echo "::error::Branch release/${BRANCH_SUFFIX} already exists on origin (leftover from a previous run?). Delete it and re-run."
+            exit 1
+          fi
+
+      - name: Setup Node.js and pnpm
+        uses: ./.github/actions/setup-pnpm
+
+      - name: Install (no lifecycle scripts)
+        run: pnpm install --frozen-lockfile --ignore-scripts
+
+      - name: Apply changesets and create the release commit
+        id: commit
+        env:
+          PACKAGE: ${{ inputs.package }}
+          PLAN: ${{ needs.validate.outputs.packages }}
+          SUMMARY: ${{ needs.validate.outputs.summary }}
+        run: |
+          set -euo pipefail
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          printf '%s\n' "${PLAN}" > "${RUNNER_TEMP}/release-plan.json"
+          node scripts/release-packages.mjs snapshot-public --out "${RUNNER_TEMP}/public-before.json"
+          node scripts/release-packages.mjs isolate --package "${PACKAGE}" --hold-dir "${RUNNER_TEMP}/held-changesets"
+
+          CI=true pnpm exec changeset version
+
+          node scripts/release-packages.mjs restore --hold-dir "${RUNNER_TEMP}/held-changesets"
+          node scripts/release-packages.mjs assert-planned-versions \
+            --plan "${RUNNER_TEMP}/release-plan.json" \
+            --before "${RUNNER_TEMP}/public-before.json"
+
+          git add -A -- .
+          UNEXPECTED="$(python3 - <<'PY'
+          import re
+          import subprocess
+
+          allowed = (
+              re.compile(r"^\.changeset/[^/]+\.md$"),
+              re.compile(r"^packages/[^/]+/package\.json$"),
+              re.compile(r"^packages/[^/]+/CHANGELOG\.md$"),
+              re.compile(r"^pnpm-lock\.yaml$"),
+          )
+          names = subprocess.check_output(["git", "diff", "--cached", "--name-only"], text=True)
+          unexpected = [
+              line for line in names.splitlines()
+              if line and not any(pattern.match(line) for pattern in allowed)
+          ]
+          if unexpected:
+              print("\n".join(unexpected))
+          PY
+          )"
+          if [[ -n "${UNEXPECTED}" ]]; then
+            echo "::error::Unexpected files modified by changeset version:"
+            echo "${UNEXPECTED}"
+            exit 1
+          fi
+
+          git --no-pager diff --cached
+          git commit -m "chore(release): ${SUMMARY}"
+
+          while IFS= read -r row; do
+            TAG="$(jq -er '.tag' <<< "${row}")"
+            VERSION="$(jq -er '.version' <<< "${row}")"
+            NAME="$(jq -er '.name' <<< "${row}")"
+            git tag -a "${TAG}" -m "Release ${NAME} ${VERSION}"
+          done < <(jq -c '.releases[]' "${RUNNER_TEMP}/release-plan.json")
+
+          echo "release_commit_sha=$(git rev-parse HEAD)" >> "${GITHUB_OUTPUT}"
+
+      - name: Push release branch
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          BRANCH_SUFFIX: ${{ needs.validate.outputs.branch_suffix }}
+        run: |
+          set -euo pipefail
+
+          ASKPASS="$(mktemp)"
+          trap 'rm -f "${ASKPASS}"' EXIT
+          printf '#!/bin/sh\nprintf %%s "${GITHUB_TOKEN}"\n' > "${ASKPASS}"
+          chmod 700 "${ASKPASS}"
+
+          GIT_ASKPASS="${ASKPASS}" git push \
+            "https://x-access-token@github.com/${GITHUB_REPOSITORY}.git" \
+            "HEAD:refs/heads/release/${BRANCH_SUFFIX}"
+
+      - name: Open and merge release PR
+        id: pr
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          BRANCH_SUFFIX: ${{ needs.validate.outputs.branch_suffix }}
+          SUMMARY: ${{ needs.validate.outputs.summary }}
+        run: |
+          set -euo pipefail
+          PR_URL="$(gh pr create --base main --head "release/${BRANCH_SUFFIX}" \
+            --title "chore(release): ${SUMMARY}" \
+            --body "Automated Changeset version bump for ${SUMMARY}. This PR is required because main is protected; once merged, publish continues automatically with \`--tag next\`.")"
+          PR_NUMBER="${PR_URL##*/}"
+          echo "pr_number=${PR_NUMBER}" >> "${GITHUB_OUTPUT}"
+          gh pr merge "${PR_NUMBER}" --merge --delete-branch
+
+      - name: Wait for release PR to merge
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          PR_NUMBER: ${{ steps.pr.outputs.pr_number }}
+        run: |
+          set -euo pipefail
+          ELAPSED=0
+          TIMEOUT=900
+          while true; do
+            STATE="$(gh pr view "${PR_NUMBER}" --json state --jq '.state')"
+            if [[ "${STATE}" == "MERGED" ]]; then
+              break
+            fi
+            if [[ "${STATE}" == "CLOSED" ]]; then
+              echo "::error::Release PR #${PR_NUMBER} was closed without merging."
+              exit 1
+            fi
+            MERGEABLE="$(gh pr view "${PR_NUMBER}" --json mergeable --jq '.mergeable')"
+            if [[ "${MERGEABLE}" == "CONFLICTING" ]]; then
+              echo "::error::Release PR #${PR_NUMBER} conflicts with main. Resolve manually and re-run the release."
+              exit 1
+            fi
+            if (( ELAPSED >= TIMEOUT )); then
+              echo "::error::Timed out waiting for release PR #${PR_NUMBER} to merge (state=${STATE}). Check required status checks / branch protection."
+              exit 1
+            fi
+            sleep 15
+            ELAPSED=$((ELAPSED + 15))
+          done
+
+      - name: Push release tags
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          PLAN: ${{ needs.validate.outputs.packages }}
+        run: |
+          set -euo pipefail
+
+          ASKPASS="$(mktemp)"
+          trap 'rm -f "${ASKPASS}"' EXIT
+          printf '#!/bin/sh\nprintf %%s "${GITHUB_TOKEN}"\n' > "${ASKPASS}"
+          chmod 700 "${ASKPASS}"
+
+          while IFS= read -r row; do
+            TAG="$(jq -er '.tag' <<< "${row}")"
+            GIT_ASKPASS="${ASKPASS}" git push \
+              "https://x-access-token@github.com/${GITHUB_REPOSITORY}.git" \
+              "refs/tags/${TAG}"
+          done < <(printf '%s\n' "${PLAN}" | jq -c '.releases[]')
+
+  publish-npm:
+    name: Publish npm packages under the next tag
+    needs: [validate, prepare-release]
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    environment: npm-publish
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - name: Checkout immutable release commit
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          ref: ${{ needs.prepare-release.outputs.release_commit_sha }}
+          persist-credentials: false
+
+      - name: Setup Node.js and pnpm
+        uses: ./.github/actions/setup-pnpm
+        with:
+          registry-url: "https://registry.npmjs.org"
+
+      - name: Install
+        run: pnpm install --frozen-lockfile
+
+      - name: Build, pack and publish each package with --tag next
+        env:
+          PLAN: ${{ needs.validate.outputs.packages }}
+        run: |
+          set -euo pipefail
+
+          NPM_VERSION="$(npm --version)"
+          if [[ "$(printf '%s\n' 11.5.1 "${NPM_VERSION}")" != "$(printf '%s\n' 11.5.1 "${NPM_VERSION}" | sort -V)" ]]; then
+            echo "::error::npm ${NPM_VERSION} < 11.5.1; OIDC trusted publishing unsupported."
+            exit 1
+          fi
+
+          while IFS= read -r row; do
+            NAME="$(jq -er '.name' <<< "${row}")"
+            VERSION="$(jq -er '.version' <<< "${row}")"
+            PACK_DIR="${RUNNER_TEMP}/npm/$(printf '%s' "${NAME}" | tr '/@' '__')"
+            mkdir -p "${PACK_DIR}"
+
+            pnpm --filter "${NAME}" run --if-present build
+            pnpm --filter "${NAME}" pack --pack-destination "${PACK_DIR}"
+
+            TARBALL="$(find "${PACK_DIR}" -type f -name '*.tgz' | head -1)"
+            if [[ -z "${TARBALL}" || ! -f "${TARBALL}" ]]; then
+              echo "::error::pnpm pack did not produce a tarball for ${NAME}."
+              exit 1
+            fi
+
+            node scripts/release-packages.mjs validate-tarball \
+              --file "${TARBALL}" \
+              --name "${NAME}" \
+              --version "${VERSION}"
+
+            NPM_PACKAGE_URLENC="$(printf '%s' "${NAME}" | sed 's#/#%2F#g')"
+            META="$(curl -sS "https://registry.npmjs.org/${NPM_PACKAGE_URLENC}")"
+            if ! jq -e 'has("versions")' <<< "${META}" >/dev/null; then
+              echo "::error::${NAME} not found on the registry; the first publish is manual."
+              exit 1
+            fi
+            if ! jq --arg v "${VERSION}" -e '.versions[$v] | not' <<< "${META}" >/dev/null; then
+              echo "::error::${NAME}@${VERSION} is already published."
+              exit 1
+            fi
+
+            npm publish "${TARBALL}" --ignore-scripts --access public --tag next
+
+            {
+              echo "### npm package uploaded (not latest)"
+              echo "- \`${NAME}@${VERSION}\` published with \`--tag next\` via OIDC trusted publishing"
+              echo "- Promote when ready: \`npm dist-tag add ${NAME}@${VERSION} latest\`"
+              echo "- https://www.npmjs.com/package/${NAME}/v/${VERSION}"
+            } >> "${GITHUB_STEP_SUMMARY}"
+          done < <(printf '%s\n' "${PLAN}" | jq -c '.releases[]')
+
+  create-github-release:
+    name: Create GitHub releases
+    needs: [validate, prepare-release, publish-npm]
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout immutable release commit
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          ref: ${{ needs.prepare-release.outputs.release_commit_sha }}
+          fetch-tags: true
+          persist-credentials: false
+
+      - name: Setup Node.js
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: "24"
+
+      - name: Create one GitHub release per package tag
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          PLAN: ${{ needs.validate.outputs.packages }}
+        run: |
+          set -euo pipefail
+
+          while IFS= read -r row; do
+            NAME="$(jq -er '.name' <<< "${row}")"
+            VERSION="$(jq -er '.version' <<< "${row}")"
+            TAG="$(jq -er '.tag' <<< "${row}")"
+            NOTES="${RUNNER_TEMP}/notes-${VERSION}.md"
+
+            node scripts/release-packages.mjs extract-changelog \
+              --package "${NAME}" \
+              --version "${VERSION}" \
+              --out "${NOTES}"
+
+            gh release create "${TAG}" --verify-tag \
+              --title "${TAG}" \
+              --notes-file "${NOTES}"
+          done < <(printf '%s\n' "${PLAN}" | jq -c '.releases[]')
