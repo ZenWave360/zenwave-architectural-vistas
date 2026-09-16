@@ -24,3 +24,7 @@ coverage/
 
 # Windows
 Thumbs.db
+
+# Built webview copied into the publishable package
+packages/eventflow-webview/webview/
+packages/eventflow-webview/build/

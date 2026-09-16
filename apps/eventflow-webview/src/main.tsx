@@ -1,3 +1,7 @@
+// The bridge bootstrap must stay the first import: it registers the message listener before anything else runs.
+import './bootstrap';
+import './page.css';
+import type { BridgeMessage, RenderBundle, ViewMode } from './bootstrap';
 import { useEffect, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import {
@@ -9,32 +13,6 @@ import {
 } from '@zenwave360/vistas-eventflow/react';
 import placeOrderFlow from './fixtures/place-order-flow.json';
 import placeOrderServices from './fixtures/place-order-services.json';
-
-type ViewMode = 'flow' | 'services';
-
-declare global {
-  interface Window {
-    __eventFlowPendingMessages?: Array<{
-      type: string;
-      payload?: {
-        flowGraph?: FlowViewModel | null;
-        serviceGraph?: ServiceViewModel | null;
-        viewMode?: ViewMode;
-        displaySettings?: DiagramDisplaySettings;
-        nodeId?: string | null;
-      };
-    }>;
-    renderBundle?: (bundle: {
-      flowGraph?: FlowViewModel | null;
-      serviceGraph?: ServiceViewModel | null;
-      viewMode?: ViewMode;
-      displaySettings?: DiagramDisplaySettings;
-    }) => void;
-    setViewMode?: (viewMode: ViewMode) => void;
-    setDisplaySettings?: (displaySettings: DiagramDisplaySettings) => void;
-    highlightNode?: (nodeId: string | null) => void;
-  }
-}
 
 function EmptyState({ message }: { message: string }) {
   return (
@@ -57,22 +35,8 @@ function EmptyState({ message }: { message: string }) {
 }
 
 function applyBridgeMessage(
-  message: {
-    type: string;
-    payload?: {
-      flowGraph?: FlowViewModel | null;
-      serviceGraph?: ServiceViewModel | null;
-      viewMode?: ViewMode;
-      displaySettings?: DiagramDisplaySettings;
-      nodeId?: string | null;
-    };
-  },
-  renderBundle: (bundle: {
-    flowGraph?: FlowViewModel | null;
-    serviceGraph?: ServiceViewModel | null;
-    viewMode?: ViewMode;
-    displaySettings?: DiagramDisplaySettings;
-  }) => void,
+  message: BridgeMessage,
+  renderBundle: (bundle: RenderBundle) => void,
   setViewMode: (viewMode: ViewMode) => void,
   setDisplaySettings: (displaySettings: DiagramDisplaySettings) => void,
   highlightNode: (nodeId: string | null) => void
@@ -111,12 +75,7 @@ function WebviewApp() {
   const [highlightedNodeIds, setHighlightedNodeIds] = useState<string[]>([]);
 
   useEffect(() => {
-    const renderBundle = (bundle: {
-      flowGraph?: FlowViewModel | null;
-      serviceGraph?: ServiceViewModel | null;
-      viewMode?: ViewMode;
-      displaySettings?: DiagramDisplaySettings;
-    }) => {
+    const renderBundle = (bundle: RenderBundle) => {
       if (bundle.flowGraph !== undefined) {
         setFlowViewModel(bundle.flowGraph ?? null);
       }

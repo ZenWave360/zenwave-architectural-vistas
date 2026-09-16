@@ -1,0 +1,35 @@
+{
+  "name": "@zenwave360/vistas-eventflow-webview",
+  "version": "0.1.0",
+  "description": "Static EventFlow and Service Map webview bundle for IDE hosts such as VS Code webviews and IntelliJ JCEF",
+  "type": "module",
+  "files": [
+    "webview",
+    "index.js",
+    "index.d.ts",
+    "README.md"
+  ],
+  "main": "./index.js",
+  "types": "./index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./index.d.ts",
+      "import": "./index.js"
+    },
+    "./protocol.json": "./webview/protocol.json",
+    "./webview/*": "./webview/*",
+    "./package.json": "./package.json"
+  },
+  "scripts": {
+    "build": "pnpm --filter @zenwave360/vistas-eventflow-webview-app build && node scripts/copy-webview.mjs",
+    "check": "tsc --noEmit -p tsconfig.json",
+    "test": "node --test \"test/*.test.mjs\""
+  },
+  "devDependencies": {
+    "@zenwave360/vistas-eventflow-webview-app": "workspace:*",
+    "typescript": "^5.3.3"
+  },
+  "publishConfig": {
+    "access": "public"
+  }
+}

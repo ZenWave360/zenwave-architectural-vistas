@@ -33,6 +33,7 @@ on:
           - all
           - "@zenwave360/vistas-eventflow"
           - "@zenwave360/eventcatalog-components"
+          - "@zenwave360/vistas-eventflow-webview"
 
 permissions:
   contents: read

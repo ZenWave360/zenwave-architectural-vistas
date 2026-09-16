@@ -48,6 +48,10 @@ The current implementation still expects a prepared and positioned `FlowViewMode
 
 This private Vite application creates the static browser bundle used by the IntelliJ plugin. It imports only the EventFlow package. Future visualization packages will not increase this bundle unless this app imports them.
 
+### `packages/eventflow-webview`
+
+The `@zenwave360/vistas-eventflow-webview` package contains the page built by `apps/eventflow-webview`, as static files, and documents its host message protocol and protocol version. IDE hosts that consume npm packages, such as the ZenWave VS Code extension, use it. It contains no visualization code of its own.
+
 ### `packages/eventcatalog-components`
 
 The `@zenwave360/eventcatalog-components` package is the installable component suite for EventCatalog users. It can contain architecture diagrams and other useful EventCatalog components, such as `RemoteSpecificationSchema`.

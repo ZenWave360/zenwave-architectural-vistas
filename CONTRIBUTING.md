@@ -19,7 +19,8 @@ pnpm install
 | --- | --- | --- |
 | `packages/eventflow` | `@zenwave360/vistas-eventflow` | Yes |
 | `packages/eventcatalog-components` | `@zenwave360/eventcatalog-components` | Yes |
-| `apps/eventflow-webview` | `@zenwave360/vistas-eventflow-webview` | No. Private host used to build the IntelliJ static bundle. |
+| `packages/eventflow-webview` | `@zenwave360/vistas-eventflow-webview` | Yes. The page built by `apps/eventflow-webview`, packaged for IDE hosts. |
+| `apps/eventflow-webview` | `@zenwave360/vistas-eventflow-webview-app` | No. Private host used to build the IntelliJ static bundle. |
 
 See [REPOSITORY_SCOPE.md](./REPOSITORY_SCOPE.md) for what belongs in this repository.
 
@@ -43,7 +44,7 @@ Do not bump `version` in `package.json` by hand. The release workflow does that 
 ### Preview EventFlow
 
 ```bash
-pnpm --filter @zenwave360/vistas-eventflow-webview dev
+pnpm --filter @zenwave360/vistas-eventflow-webview-app dev
 ```
 
 This opens `test.html`, where you can paste `FlowViewModel` JSON.
@@ -59,6 +60,12 @@ pnpm sync:intellij
 The default plugin checkout is `../ZenWaveDomainModelEditor`. Override it with `ZENWAVE_INTELLIJ_PLUGIN_DIR` or `--plugin-dir`. Preview the copy with `pnpm sync:intellij:dry-run`.
 
 This is a local integration step. It is not part of the npm release.
+
+### EventFlow webview package
+
+`packages/eventflow-webview` has no page source of its own. Its build runs the `apps/eventflow-webview` build and copies `dist` (without source maps) into `webview/`. Its tests load that directory in a headless Chromium-based browser under a strict content security policy. The browser is Edge or Chrome at the standard install paths, or the executable named by `ZENWAVE_TEST_BROWSER`. Without a browser, the browser tests are skipped locally and fail in CI.
+
+A change to the page in `apps/eventflow-webview` reaches npm through this package, so record its Changeset against `@zenwave360/vistas-eventflow-webview`. If the change is not backwards compatible for a host, increase `EVENTFLOW_WEBVIEW_PROTOCOL_VERSION` in both `apps/eventflow-webview/src/protocol.ts` and `packages/eventflow-webview/index.js` (a test checks they match), and use a major bump.
 
 ## Changesets
 
@@ -81,7 +88,7 @@ Use these bump types:
 Rules:
 
 - Every user-facing change to a public package needs a Changeset.
-- Do not add a Changeset for `apps/eventflow-webview` only. That app is ignored and is not published.
+- Do not add a Changeset for `apps/eventflow-webview` itself. That app is ignored and is not published. Record page changes against `@zenwave360/vistas-eventflow-webview`.
 - Docs-only or CI-only changes do not need a Changeset.
 - One Changeset file may list more than one public package. That file is a **joint** change. See [Individual or all](#individual-or-all).
 
@@ -107,9 +114,10 @@ The workflow `package` input is a select:
 | --- | --- |
 | `@zenwave360/vistas-eventflow` | Only that package, if it has pending Changesets |
 | `@zenwave360/eventcatalog-components` | Only that package, if it has pending Changesets |
+| `@zenwave360/vistas-eventflow-webview` | Only that package, if it has pending Changesets |
 | `all` | Every public package that has pending Changesets, in one run |
 
-**Individual** means you pick one package. Other pending Changesets stay on `main` for a later run. The two public packages keep independent versions.
+**Individual** means you pick one package. Other pending Changesets stay on `main` for a later run. Public packages keep independent versions.
 
 **All** (a joint / solidary release) means one workflow run versions and publishes every public package that currently has pending Changesets. Each package still gets its own version, git tag, and GitHub Release. They are not forced to the same number. Use `all` when you want one publish pass for everything that is ready, or when a Changeset file lists more than one public package.
 

@@ -8,6 +8,6 @@
   "baseBranch": "main",
   "updateInternalDependencies": "patch",
   "ignore": [
-    "@zenwave360/vistas-eventflow-webview"
+    "@zenwave360/vistas-eventflow-webview-app"
   ]
 }

@@ -96,6 +96,15 @@ importers:
         specifier: ^7.3.0
         version: 7.3.6(@types/node@25.9.5)
 
+  packages/eventflow-webview:
+    devDependencies:
+      '@zenwave360/vistas-eventflow-webview-app':
+        specifier: workspace:*
+        version: link:../../apps/eventflow-webview
+      typescript:
+        specifier: ^5.3.3
+        version: 5.9.3
+
 packages:
 
   '@babel/code-frame@7.29.7':

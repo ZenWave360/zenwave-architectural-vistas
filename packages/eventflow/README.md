@@ -15,7 +15,7 @@ A React Flow visualizer for EventFlow diagrams with pre-computed positions.
 ## Quick Start
 
 From the monorepo root, run `pnpm install` and then
-`pnpm --filter @zenwave360/vistas-eventflow-webview dev`. This opens
+`pnpm --filter @zenwave360/vistas-eventflow-webview-app dev`. This opens
 `test.html`, where you can paste `FlowViewModel` JSON to test the viewer.
 
 ## Static Bundle For IntelliJ / JCEF
@@ -23,7 +23,7 @@ From the monorepo root, run `pnpm install` and then
 Build the static webview bundle with:
 
 ```bash
-pnpm --filter @zenwave360/vistas-eventflow-webview build
+pnpm --filter @zenwave360/vistas-eventflow-webview-app build
 ```
 
 The build output is written to:

@@ -8,7 +8,8 @@ See [Repository Purpose and Scope](./REPOSITORY_SCOPE.md) for the project goals,
 
 - `packages/eventflow` — the bounded EventFlow and Service Map visualization package.
 - `packages/eventcatalog-components` — installable Astro components for EventCatalog projects.
-- `apps/eventflow-webview` — the standalone Vite/JCEF host for the EventFlow package.
+- `packages/eventflow-webview` — `@zenwave360/vistas-eventflow-webview`, the built EventFlow webview page as a package, for IDE hosts such as VS Code.
+- `apps/eventflow-webview` — the standalone Vite/JCEF host for the EventFlow package. It builds the webview page.
 
 Packages are organized by visualization capability rather than by UI framework. A capability may expose framework-independent model, layout, SVG, React, or Astro entry points without forcing unrelated visualizations into the same runtime bundle.
 
@@ -38,6 +39,17 @@ pnpm sync:intellij -- --plugin-dir C:/workspace/ZenWaveDomainModelEditor
 ```
 
 The synchronization script validates the plugin project and exact resource directory, rejects symbolic links, copies the new build first, and removes only stale files within `src/main/resources/web/eventflow`.
+
+## Other webview hosts
+
+`@zenwave360/vistas-eventflow-webview` packages the same page for hosts that consume it as an npm package, such as the ZenWave VS Code extension. The page has no inline script or style and loads nothing remote. See [packages/eventflow-webview/README.md](./packages/eventflow-webview/README.md) for how to load it, the messages, and protocol versioning.
+
+To use it locally without publishing:
+
+```bash
+pnpm --filter @zenwave360/vistas-eventflow-webview build
+pnpm --filter @zenwave360/vistas-eventflow-webview pack
+```
 
 ## CI and release
 
