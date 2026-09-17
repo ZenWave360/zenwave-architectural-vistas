@@ -26,7 +26,7 @@ See [REPOSITORY_SCOPE.md](./REPOSITORY_SCOPE.md) for what belongs in this reposi
 
 ## Feature development
 
-1. Branch from `main`.
+1. Branch from `develop`.
 2. Change only the package that owns the feature. Do not add unrelated visualizations to an existing package.
 3. Check your work from the repository root:
 
@@ -37,7 +37,9 @@ pnpm test
 ```
 
 4. If you changed a **public** package, record a Changeset in the same pull request (see below).
-5. Open a pull request into `main`. CI runs the same check, build, and test commands.
+5. Open a pull request into `develop`. CI runs the same check, build, and test commands.
+
+Every push to `develop` also publishes an npm snapshot (see [Snapshots](#snapshots)) of any public package that has a pending Changeset, tagged `next`. `main` only moves forward through a pull request from `develop`; releases are always dispatched from `main` (see [Releases](#releases)).
 
 Do not bump `version` in `package.json` by hand. The release workflow does that from Changeset files.
 
@@ -98,9 +100,21 @@ To inspect what a release would do, without writing files:
 pnpm exec changeset status
 ```
 
+## Snapshots
+
+Every push to `develop` runs **Actions → Publish npm snapshots** ([publish-npm-snapshots.yml](.github/workflows/publish-npm-snapshots.yml)). It:
+
+1. Runs `changeset version --snapshot next` in a throwaway checkout: every public package that currently has a pending Changeset gets bumped to a prerelease version like `0.2.0-next-20260918123045`.
+2. Builds, packs, and `npm publish --tag next`s only the packages that actually changed version.
+3. Discards the checkout. Nothing is committed or pushed, so the pending `.changeset/*.md` files on `develop` are untouched — they are still there, unconsumed, for the real release later.
+
+Snapshots are for testing an in-progress change before it is released. `npm install <pkg>` still installs `latest`; only `npm install <pkg>@next` sees a snapshot, and a later real release will overwrite that `next` dist-tag with its own (also `next`-tagged) build. If no public package has a pending Changeset, the run is a no-op.
+
+Use `workflow_dispatch` to force a snapshot run without a new push (for example, to republish after a flaky OIDC step).
+
 ## Releases
 
-Releases are manual. Dispatch **Actions → Release** from `main`. There is no develop branch and no snapshot publish.
+Releases are manual. Dispatch **Actions → Release** from `main`. Continuous prereleases run separately on every push to `develop` (see [Snapshots](#snapshots)); they never affect this workflow's pending Changesets.
 
 The workflow does not ask for a version number. It reads pending `.changeset/*.md` files on `main` and computes the next version for each selected package.
 
@@ -142,7 +156,7 @@ If releasing one package would also bump another public package (for example an 
 3. **Publish** — gated by the `npm-publish` GitHub Environment. Rebuilds the selected packages from that release commit and uploads each tarball with `npm publish --tag next`. There is no `NPM_TOKEN`. Authentication is OIDC trusted publishing.
 4. **GitHub Release** — one release per tag. The body is the new section from that package’s `CHANGELOG.md`.
 
-Packages stay on the released version on `main` until the next Changeset run. There is no SNAPSHOT or `-next` version bump after publish.
+Packages stay on the released version in `package.json` on `main` (and `develop`) until the next Changeset run. Snapshots never bump the committed version; they only exist as published npm versions under the `next` dist-tag.
 
 If publish fails after prepare succeeded, use **Re-run failed jobs** on that same run. Do not **Re-run all jobs**. That would try to version again.
 
@@ -165,8 +179,13 @@ OIDC trusted publishing cannot create a package that does not already exist on t
 
 These are repository and npm settings, not per-release steps:
 
+- Branch `develop` exists and is the integration branch: pull requests target `develop`, not `main`. `main` only advances by merging `develop` into it (directly, or via a pull request from `develop`).
+- Branch protection on `main` requires a pull request (release PRs are opened by `release.yml` itself against `main`, as today).
+- Branch protection on `develop` requires a pull request for feature branches, same as `main` does today.
 - GitHub Environment `npm-publish`: required reviewer, deployment branches restricted to `main`, no secrets.
+- GitHub Environment `npm-snapshots`: no required reviewer, deployment branches restricted to `develop`, no secrets. Continuous snapshots would defeat the point of the human gateway if they needed manual approval on every push.
 - On npmjs.com, a Trusted Publisher for each public package: GitHub Actions, this repository, workflow file `release.yml`, environment `npm-publish`.
+- On npmjs.com, a **second** Trusted Publisher for each public package: GitHub Actions, this repository, workflow file `publish-npm-snapshots.yml`, environment `npm-snapshots`. npm ties a trusted publisher to one exact (workflow file, environment) pair, so the snapshot workflow needs its own entry alongside the release one.
 
 ### Adding a public package
 

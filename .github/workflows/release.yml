@@ -19,7 +19,9 @@ name: Release
 #
 # Versions come from pending Changesets on main, not from typed version inputs.
 # Select one public package or `all` packages that have pending changesets.
-# There is no develop branch and no snapshot publication.
+# Continuous "next" prereleases run separately, from `develop`, via
+# publish-npm-snapshots.yml. That workflow never touches these Changesets:
+# it snapshot-versions them in a throwaway checkout that is never committed.
 
 on:
   workflow_dispatch:

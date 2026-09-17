@@ -277,6 +277,26 @@ async function snapshotPublicPackages(options = {}) {
   process.stdout.write(json);
 }
 
+async function snapshotDiff(options) {
+  const beforePath = requiredOption(options, 'before');
+  const before = await readJson(beforePath);
+  const previousVersions = new Map((before.packages || []).map((item) => [item.name, item.version]));
+  const after = await listPublicPackages();
+
+  const releases = after
+    .filter((item) => item.version !== previousVersions.get(item.name))
+    .map((item) => ({ name: item.name, version: item.version, directory: item.directory }));
+
+  const planDocument = { releases };
+  const json = `${JSON.stringify(planDocument, null, 2)}\n`;
+  if (options.out) await writeFile(options.out, json, 'utf8');
+
+  writeGithubOutput('packages', JSON.stringify(planDocument));
+  writeGithubOutput('count', String(releases.length));
+  writeGithubOutput('summary', releases.map((release) => `${release.name}@${release.version}`).join(', '));
+  process.stdout.write(json);
+}
+
 function extractChangelogSection(markdown, version) {
   const heading = `## ${version}`;
   const start = markdown.indexOf(heading);
@@ -369,6 +389,9 @@ async function main() {
       break;
     case 'snapshot-public':
       await snapshotPublicPackages(options);
+      break;
+    case 'snapshot-diff':
+      await snapshotDiff(options);
       break;
     case 'extract-changelog':
       await extractChangelog(options);

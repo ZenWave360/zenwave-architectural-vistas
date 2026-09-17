@@ -1,0 +1,109 @@
+name: Publish npm snapshots
+
+# Continuous "next" prereleases, published from `develop`. Mirrors
+# zenwave-lsp's publish-npm-snapshots.yml: every push publishes a throwaway
+# prerelease (e.g. 0.2.0-next-20260918123045) of each public package that
+# currently has a pending Changeset, so `npm install pkg@next` always tracks
+# the tip of `develop`.
+#
+# This never touches git history or the real Changeset files: `changeset
+# version --snapshot` runs in a throwaway checkout that is discarded at the
+# end of the job. Nothing is committed or pushed, so the pending
+# `.changeset/*.md` files stay untouched for the independent Release workflow
+# (release.yml), which still only runs from `main`.
+#
+# Security model: same OIDC trusted publishing as release.yml, but gated by
+# the `npm-snapshots` environment (no required reviewer) instead of
+# `npm-publish` (required reviewer). A snapshot can never become `latest`:
+# npm publish always uses --tag next here too.
+
+on:
+  push:
+    branches: [develop]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: npm-snapshots-${{ github.repository }}
+  cancel-in-progress: false
+
+jobs:
+  snapshot:
+    name: Version, build and publish snapshots
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    environment: npm-snapshots
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+
+      - name: Setup Node.js and pnpm
+        uses: ./.github/actions/setup-pnpm
+        with:
+          registry-url: "https://registry.npmjs.org"
+
+      - name: Install (no lifecycle scripts)
+        run: pnpm install --frozen-lockfile --ignore-scripts
+
+      - name: Snapshot-version packages with pending Changesets
+        id: snapshot
+        run: |
+          set -euo pipefail
+          node scripts/release-packages.mjs snapshot-public --out "${RUNNER_TEMP}/before.json"
+          CI=true pnpm exec changeset version --snapshot next
+          node scripts/release-packages.mjs snapshot-diff \
+            --before "${RUNNER_TEMP}/before.json" \
+            --out "${RUNNER_TEMP}/snapshot-plan.json"
+
+      - name: Skip publish when no package has a pending Changeset
+        if: steps.snapshot.outputs.count == '0'
+        run: echo "No pending changesets on develop; nothing to snapshot." >> "${GITHUB_STEP_SUMMARY}"
+
+      - name: Build, pack and publish each snapshot with --tag next
+        if: steps.snapshot.outputs.count != '0'
+        env:
+          PLAN: ${{ steps.snapshot.outputs.packages }}
+        run: |
+          set -euo pipefail
+
+          NPM_VERSION="$(npm --version)"
+          if [[ "$(printf '%s\n' 11.5.1 "${NPM_VERSION}")" != "$(printf '%s\n' 11.5.1 "${NPM_VERSION}" | sort -V)" ]]; then
+            echo "::error::npm ${NPM_VERSION} < 11.5.1; OIDC trusted publishing unsupported."
+            exit 1
+          fi
+
+          while IFS= read -r row; do
+            NAME="$(jq -er '.name' <<< "${row}")"
+            VERSION="$(jq -er '.version' <<< "${row}")"
+            PACK_DIR="${RUNNER_TEMP}/npm/$(printf '%s' "${NAME}" | tr '/@' '__')"
+            mkdir -p "${PACK_DIR}"
+
+            pnpm --filter "${NAME}" run --if-present build
+            pnpm --filter "${NAME}" pack --pack-destination "${PACK_DIR}"
+
+            TARBALL="$(find "${PACK_DIR}" -type f -name '*.tgz' | head -1)"
+            if [[ -z "${TARBALL}" || ! -f "${TARBALL}" ]]; then
+              echo "::error::pnpm pack did not produce a tarball for ${NAME}."
+              exit 1
+            fi
+
+            node scripts/release-packages.mjs validate-tarball \
+              --file "${TARBALL}" \
+              --name "${NAME}" \
+              --version "${VERSION}"
+
+            npm publish "${TARBALL}" --ignore-scripts --access public --tag next
+
+            {
+              echo "### npm snapshot published"
+              echo "- \`${NAME}@${VERSION}\` published with \`--tag next\` via OIDC trusted publishing"
+              echo "- https://www.npmjs.com/package/${NAME}/v/${VERSION}"
+            } >> "${GITHUB_STEP_SUMMARY}"
+          done < <(printf '%s\n' "${PLAN}" | jq -c '.releases[]')
