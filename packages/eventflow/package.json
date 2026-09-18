@@ -3,6 +3,11 @@
   "version": "0.1.0",
   "description": "React visualizers and contracts for ZenWave ZFL event-flow and service-map diagrams",
   "type": "module",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/ZenWave360/zenwave-architectural-vistas.git",
+    "directory": "packages/eventflow"
+  },
   "sideEffects": [
     "**/*.css"
   ],
