@@ -20,7 +20,9 @@ pnpm install
 | `packages/eventflow` | `@zenwave360/vistas-eventflow` | Yes |
 | `packages/eventcatalog-components` | `@zenwave360/eventcatalog-components` | Yes |
 | `packages/eventflow-webview` | `@zenwave360/vistas-eventflow-webview` | Yes. The page built by `apps/eventflow-webview`, packaged for IDE hosts. |
-| `apps/eventflow-webview` | `@zenwave360/vistas-eventflow-webview-app` | No. Private host used to build the IntelliJ static bundle. |
+| `apps/eventflow-webview` | `@zenwave360/vistas-eventflow-webview-app` | No. Private host used to build the IntelliJ static bundle (the minimal page). |
+| `apps/eventflow-toolbar-webview` | `@zenwave360/vistas-eventflow-toolbar-webview-app` | No. Private host of the page with a Flow / Systems selector, for VS Code. |
+| `packages/eventflow-page` | `@zenwave360/vistas-eventflow-page` | No. Source-only: the diagram page component and host bridge both apps embed. |
 
 See [REPOSITORY_SCOPE.md](https://github.com/ZenWave360/zenwave-specs/blob/main/zenwave-architectural-vistas/REPOSITORY_SCOPE.md) for what belongs in this repository.
 

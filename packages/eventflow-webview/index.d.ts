@@ -11,6 +11,10 @@ export declare const EVENTFLOW_WEBVIEW_INBOUND_MESSAGES: readonly [
 ];
 export declare const EVENTFLOW_WEBVIEW_OUTBOUND_MESSAGES: readonly ['webviewReady'];
 
+export declare const EVENTFLOW_WEBVIEW_TOOLBAR_DIRECTORY: 'webview-toolbar';
+export declare const EVENTFLOW_WEBVIEW_TOOLBAR_ENTRY: 'webview-toolbar/index.html';
+export declare const EVENTFLOW_WEBVIEW_TOOLBAR_OUTBOUND_MESSAGES: readonly ['webviewReady', 'viewModeChanged'];
+
 export type EventFlowViewMode = 'flow' | 'services';
 
 export interface EventFlowDisplaySettings {
@@ -65,4 +69,13 @@ export interface WebviewReadyMessage {
     protocol: typeof EVENTFLOW_WEBVIEW_PROTOCOL;
     protocolVersion: number;
   };
+}
+
+/**
+ * Page to host, sent by the page in webview-toolbar/ when the user changes the view in its selector. It is not sent for
+ * a host setViewMode or renderBundle, and the page in webview/ never sends it. A host may ignore it.
+ */
+export interface ViewModeChangedMessage {
+  type: 'viewModeChanged';
+  payload: { viewMode: EventFlowViewMode };
 }

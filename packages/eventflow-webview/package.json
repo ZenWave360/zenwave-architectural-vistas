@@ -1,7 +1,7 @@
 {
   "name": "@zenwave360/vistas-eventflow-webview",
   "version": "0.1.0",
-  "description": "Static EventFlow and Service Map webview bundle for IDE hosts such as VS Code webviews and IntelliJ JCEF",
+  "description": "Static EventFlow and Service Map webview bundle for IDE hosts such as VS Code webviews and IntelliJ JCEF; a second page adds a Flow/Systems selector",
   "type": "module",
   "repository": {
     "type": "git",
@@ -10,6 +10,7 @@
   },
   "files": [
     "webview",
+    "webview-toolbar",
     "index.js",
     "index.d.ts",
     "README.md"
@@ -23,16 +24,19 @@
     },
     "./protocol.json": "./webview/protocol.json",
     "./webview/*": "./webview/*",
-    "./package.json": "./package.json"
+    "./package.json": "./package.json",
+    "./webview-toolbar/*": "./webview-toolbar/*",
+    "./webview-toolbar/protocol.json": "./webview-toolbar/protocol.json"
   },
   "scripts": {
-    "build": "pnpm --filter @zenwave360/vistas-eventflow-webview-app build && node scripts/copy-webview.mjs",
+    "build": "pnpm --filter @zenwave360/vistas-eventflow-webview-app --filter @zenwave360/vistas-eventflow-toolbar-webview-app build && node scripts/copy-webview.mjs",
     "check": "tsc --noEmit -p tsconfig.json",
     "test": "node --test \"test/*.test.mjs\""
   },
   "devDependencies": {
     "@zenwave360/vistas-eventflow-webview-app": "workspace:*",
-    "typescript": "^5.3.3"
+    "typescript": "^5.3.3",
+    "@zenwave360/vistas-eventflow-toolbar-webview-app": "workspace:*"
   },
   "publishConfig": {
     "access": "public"

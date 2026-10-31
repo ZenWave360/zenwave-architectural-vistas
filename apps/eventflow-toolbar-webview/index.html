@@ -1,0 +1,21 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="zenwave-webview-protocol" content="@@ZENWAVE_WEBVIEW_PROTOCOL@@">
+    <meta name="zenwave-webview-protocol-version" content="@@ZENWAVE_WEBVIEW_PROTOCOL_VERSION@@">
+    <title>EventFlow Visualizer</title>
+    <!--
+      No inline script or style: the host bridge (message listener, pending queue and readiness signal) lives in
+      the eventflow-page package and the page styles in its page.css and src/toolbar.css, so a host can apply a content security policy that
+      allows scripts and styles from the page's own location only.
+    -->
+</head>
+<body>
+    <div id="root">
+        <div class="loading">Loading EventFlow Visualizer...</div>
+    </div>
+    <script type="module" src="./src/main.tsx"></script>
+</body>
+</html>

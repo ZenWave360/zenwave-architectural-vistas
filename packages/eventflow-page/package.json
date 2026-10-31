@@ -1,0 +1,28 @@
+{
+  "name": "@zenwave360/vistas-eventflow-page",
+  "version": "0.0.0",
+  "description": "The EventFlow page component and host bridge shared by the built EventFlow webview pages. Source only.",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./bootstrap": "./src/bootstrap.ts",
+    "./protocol": "./src/protocol.ts",
+    "./page.css": "./src/page.css",
+    "./vite": "./src/vite.ts"
+  },
+  "scripts": {
+    "check": "tsc --noEmit -p tsconfig.json"
+  },
+  "dependencies": {
+    "@zenwave360/vistas-eventflow": "workspace:*",
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0"
+  },
+  "devDependencies": {
+    "@types/react": "^18.2.55",
+    "@types/react-dom": "^18.2.19",
+    "typescript": "^5.3.3",
+    "vite": "^7.3.0"
+  }
+}
