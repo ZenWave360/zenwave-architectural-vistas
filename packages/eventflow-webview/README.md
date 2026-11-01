@@ -1,7 +1,15 @@
 # @zenwave360/vistas-eventflow-webview
 
-The EventFlow and Service Map visualizer as a static web page, for IDE hosts: VS Code webviews, IntelliJ JCEF, or any
-page that embeds it in an iframe. The page is built from `apps/eventflow-webview` and has no runtime dependencies.
+The EventFlow and Service Map visualizer as static web pages, for IDE hosts: VS Code webviews, IntelliJ JCEF, or any
+page that embeds them in an iframe. The pages have no runtime dependencies. There are two, built from the same diagram
+component (`packages/eventflow-page`):
+
+| Directory | Built from | Use it when |
+| --- | --- | --- |
+| `webview/` | `apps/eventflow-webview` | The host has its own controls, such as the IntelliJ Swing toolbar. The page has no selector. |
+| `webview-toolbar/` | `apps/eventflow-toolbar-webview` | The host has no toolbar inside the editor, such as VS Code. The page adds a Flow / Systems selector. |
+
+Both pages draw zoom and fit controls inside the diagram, speak the same protocol and have the same protocol version.
 
 For a React application, use `@zenwave360/vistas-eventflow` instead.
 
@@ -13,8 +21,16 @@ webview/
   assets/index-*.js the page script, including the host bridge
   assets/index-*.css all styles; system fonts only, no @font-face, no url() except data:
   protocol.json     {"protocol":"zenwave.eventflow.webview","protocolVersion":1}
+webview-toolbar/    the page with a Flow / Systems selector; same files and shape as webview/
+  index.html
+  assets/index-*.js
+  assets/index-*.css
+  protocol.json
 index.js            protocol constants (no Node API)
 ```
+
+Everything below applies to both pages. Replace `webview/` with `webview-toolbar/` to load the page with a selector;
+`@zenwave360/vistas-eventflow-webview/webview-toolbar/*` and `.../webview-toolbar/protocol.json` are exported.
 
 Asset file names contain a content hash and change between versions. Read them from `index.html`; do not hard-code them.
 
@@ -54,6 +70,23 @@ The page picks the first channel that exists:
 3. `window.parent.postMessage(message, "*")`, only when the page is inside a frame (`parent !== window`).
 4. Otherwise, no message is sent. This is the IntelliJ JCEF case: JCEF uses the browser load event instead.
 
+### Page to host: `viewModeChanged`
+
+Sent only by the page in `webview-toolbar/`, when the user changes the view in its selector:
+
+```json
+{ "type": "viewModeChanged", "payload": { "viewMode": "services" } }
+```
+
+It uses the same channel as `webviewReady`. The page does not send it when the host asked for the change with
+`setViewMode` or `renderBundle`; the selector follows those messages silently. The page in `webview/` never sends it.
+A host may ignore it, so adding it did not change `protocolVersion`.
+
+| Direction | `type` | `payload` | Sent by |
+| --- | --- | --- | --- |
+| page to host | `webviewReady` | `{ protocol, protocolVersion }` | both pages, once, when loaded |
+| page to host | `viewModeChanged` | `{ viewMode: "flow" \| "services" }` | `webview-toolbar/` only, for the user's own choice |
+
 A host that receives no `webviewReady` is looking at a page that is still loading or failed to load.
 `payload` was added in protocol version 1; a page without it predates versioning.
 
@@ -65,7 +98,7 @@ Hosts send messages with `window.postMessage` semantics: VS Code `webview.postMe
 | `type` | `payload` | Effect |
 | --- | --- | --- |
 | `renderBundle` | `{ flowGraph?, serviceGraph?, viewMode?: "flow" \| "services", displaySettings?: { humanizeLabels?: boolean } }` | Shows the given view models. Pass the server's `flowGraph` and `serviceGraph` unchanged. A missing or `null` graph shows a waiting state for that view. `displaySettings` is merged into the current settings. |
-| `setViewMode` | `{ viewMode: "flow" \| "services" }` | Switches the view without resending the model. |
+| `setViewMode` | `{ viewMode: "flow" \| "services" }` | Switches the view without resending the model. In `webview-toolbar/` the selector moves too, and the page sends no `viewModeChanged`. |
 | `setDisplaySettings` | `{ displaySettings: { humanizeLabels?: boolean } }` | Merged into the current settings; fields not sent keep their values. |
 | `highlightNode` | `{ nodeId: string \| null }` | Highlights the flow node with that id (for example a hierarchy node's `viewNodeIds` entry); `null` clears it. |
 | `renderGraph` | `{ graph }` | Legacy flow-only form. Use `renderBundle`. |

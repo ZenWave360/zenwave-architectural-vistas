@@ -52,6 +52,11 @@ export const webviewReadyMessage = {
   },
 } as const;
 
+/** Page to host, sent by a page with a view selector when the user changes the view. Never sent for a host request. */
+export function viewModeChangedMessage(viewMode: ViewMode) {
+  return { type: 'viewModeChanged', payload: { viewMode } } as const;
+}
+
 window.__eventFlowPendingMessages = window.__eventFlowPendingMessages ?? [];
 
 window.addEventListener('message', (event: MessageEvent) => {
@@ -140,6 +145,11 @@ export function resolveHostChannel(): HostChannel | undefined {
   }
 
   return undefined;
+}
+
+/** Sends a message to the host on the same channel as webviewReady. Does nothing when the page has no host channel. */
+export function postToHost(message: { type: string; payload?: unknown }): void {
+  resolveHostChannel()?.postMessage(message);
 }
 
 let readySent = false;

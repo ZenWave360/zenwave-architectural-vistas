@@ -1,0 +1,42 @@
+/* Colours follow the VS Code theme when the host provides it, with plain fallbacks elsewhere. */
+.view-selector {
+  display: flex;
+  flex: 0 0 auto;
+  gap: 2px;
+  padding: 4px 8px;
+  border-bottom: 1px solid var(--vscode-panel-border, #d4d4d8);
+  background: var(--vscode-editor-background, #ffffff);
+  color: var(--vscode-foreground, #1f2937);
+  font-size: 12px;
+}
+
+.view-selector__option {
+  position: relative;
+  cursor: pointer;
+}
+
+.view-selector__option input {
+  position: absolute;
+  opacity: 0;
+  inset: 0;
+  margin: 0;
+  cursor: pointer;
+}
+
+.view-selector__option span {
+  display: block;
+  padding: 3px 12px;
+  border: 1px solid var(--vscode-button-secondaryBackground, #d4d4d8);
+  border-radius: 3px;
+}
+
+.view-selector__option input:checked + span {
+  background: var(--vscode-button-background, #2563eb);
+  border-color: var(--vscode-button-background, #2563eb);
+  color: var(--vscode-button-foreground, #ffffff);
+}
+
+.view-selector__option input:focus-visible + span {
+  outline: 1px solid var(--vscode-focusBorder, #2563eb);
+  outline-offset: 2px;
+}

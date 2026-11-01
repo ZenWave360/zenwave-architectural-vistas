@@ -25,3 +25,17 @@ body {
   font-size: 16px;
   color: #666;
 }
+
+/* Layout of EventFlowPage when an application passes it chrome: the chrome on top, the diagram filling the rest. */
+.eventflow-page {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  height: 100%;
+}
+
+.eventflow-page__diagram {
+  flex: 1 1 auto;
+  min-height: 0;
+  position: relative;
+}
