@@ -157,6 +157,9 @@ importers:
 
   packages/eventflow-webview:
     devDependencies:
+      '@zenwave360/vistas-eventflow-toolbar-webview-app':
+        specifier: workspace:*
+        version: link:../../apps/eventflow-toolbar-webview
       '@zenwave360/vistas-eventflow-webview-app':
         specifier: workspace:*
         version: link:../../apps/eventflow-webview
