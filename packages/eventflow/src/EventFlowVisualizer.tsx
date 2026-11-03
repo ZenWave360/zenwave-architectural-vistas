@@ -15,6 +15,8 @@ import ReactFlow, {
   MiniMap,
   Node,
   NodeChange,
+  useReactFlow,
+  useStore,
 } from 'reactflow';
 import 'reactflow/dist/style.css';
 import './styles/eventflow.css';
@@ -27,6 +29,12 @@ import { EndNode } from './components/EndNode';
 import { OutcomeNode } from './components/OutcomeNode';
 import { CausationEdge } from './components/CausationEdge';
 import { DiagramDisplaySettings, humanizeLabel } from './labelFormatting';
+import {
+  computeInitialViewport,
+  FLOW_MAX_ZOOM,
+  FLOW_MIN_ZOOM,
+  type ViewportNode,
+} from './initialViewport';
 
 import {
   Dimensions,
@@ -41,6 +49,8 @@ import {
 
 export interface EventFlowVisualizerProps {
   flowViewModel: FlowViewModel;
+  /** A host should send something stable for one diagram, such as the document URI and the flow name. */
+  diagramId?: string;
   theme?: 'light' | 'dark';
   editable?: boolean;
   displaySettings?: EventFlowDisplaySettings;
@@ -434,6 +444,115 @@ function getFlowBounds(nodes: FlowNode[], fallback: FlowBounds | null): FlowBoun
   };
 }
 
+function styleLength(value: string | number | undefined): number {
+  return typeof value === 'number' && Number.isFinite(value) && value > 0 ? value : 0;
+}
+
+function viewportNodeFromReactNode(node: EventFlowReactNode, start: boolean): ViewportNode | null {
+  const style = node.style as { width?: number | string; height?: number | string } | undefined;
+  const width = styleLength(style?.width);
+  const height = styleLength(style?.height);
+
+  if (width === 0 || height === 0) {
+    return null;
+  }
+
+  return {
+    x: node.position.x,
+    y: node.position.y,
+    width,
+    height,
+    start,
+  };
+}
+
+/**
+ * Rectangles the opening viewport fits. Real nodes stay in view-model order, so the first one marked
+ * start is the first START the view model lists that has a position. Outcome chips are appended and
+ * are not starts; they only extend the bounds.
+ */
+function toOpeningViewportNodes(
+  reactNodes: readonly EventFlowReactNode[],
+  syntheticNodes: readonly EventFlowReactNode[],
+): ViewportNode[] {
+  const viewportNodes: ViewportNode[] = [];
+
+  for (const node of reactNodes) {
+    const viewportNode = viewportNodeFromReactNode(node, node.type === 'startNode');
+    if (viewportNode) {
+      viewportNodes.push(viewportNode);
+    }
+  }
+
+  for (const node of syntheticNodes) {
+    const viewportNode = viewportNodeFromReactNode(node, false);
+    if (viewportNode) {
+      viewportNodes.push(viewportNode);
+    }
+  }
+
+  return viewportNodes;
+}
+
+/**
+ * Frames the opening viewport once, the first time the pane's own width and height are both positive.
+ * React Flow's store reports 500 for a zero width or height, so a hidden pane must not count as framed.
+ * The canvas remounts when `diagramId` changes. Adding, removing or reordering nodes does not.
+ */
+function OpeningViewport({ nodes }: { nodes: readonly ViewportNode[] }) {
+  const { setViewport } = useReactFlow();
+  const domNode = useStore((state) => state.domNode);
+  const zoomReady = useStore((state) => state.d3Zoom != null && state.d3Selection != null);
+  const framed = useRef(false);
+  const [paneSize, setPaneSize] = useState({ width: 0, height: 0 });
+
+  useEffect(() => {
+    if (!domNode) {
+      return;
+    }
+
+    const readSize = () => {
+      if (framed.current) {
+        return;
+      }
+
+      const width = domNode.clientWidth;
+      const height = domNode.clientHeight;
+      setPaneSize((current) => (
+        current.width === width && current.height === height ? current : { width, height }
+      ));
+    };
+
+    readSize();
+    const observer = new ResizeObserver(readSize);
+    observer.observe(domNode);
+    return () => observer.disconnect();
+  }, [domNode]);
+
+  useEffect(() => {
+    if (framed.current || !zoomReady || paneSize.width <= 0 || paneSize.height <= 0) {
+      return;
+    }
+
+    const viewport = computeInitialViewport({
+      nodes,
+      viewportWidth: paneSize.width,
+      viewportHeight: paneSize.height,
+      minZoom: FLOW_MIN_ZOOM,
+      maxZoom: FLOW_MAX_ZOOM,
+    });
+
+    if (!viewport) {
+      return;
+    }
+
+    setViewport(viewport);
+    framed.current = true;
+  }, [nodes, paneSize.height, paneSize.width, setViewport, zoomReady]);
+
+  return null;
+}
+
 function mergeEditableNodesIntoFlowViewModel(
   flowViewModel: FlowViewModel,
   reactFlowNodes: Node<EventFlowNodeData>[]
@@ -464,7 +583,7 @@ function mergeEditableNodesIntoFlowViewModel(
   };
 }
 
-export function EventFlowVisualizer({
+function EventFlowCanvas({
   flowViewModel,
   theme = 'light',
   editable = true,
@@ -496,6 +615,10 @@ export function EventFlowVisualizer({
     () => toEditableReactFlowNodes(flowViewModel, displaySettings, highlightedNodeIdSet),
     [displaySettings, flowViewModel, highlightedNodeIdSet]
   );
+  const openingNodes = useMemo(() => {
+    const synthetic = buildSyntheticOutcomeRouting(flowViewModel, initialNodeState.nodes, displaySettings);
+    return toOpeningViewportNodes(initialNodeState.nodes, synthetic.nodes);
+  }, [displaySettings, flowViewModel, initialNodeState.nodes]);
   const [nodes, setNodes] = useState<EventFlowReactNode[]>(initialNodeState.nodes);
   const latestFlowViewModelRef = useRef(flowViewModel);
 
@@ -609,17 +732,25 @@ export function EventFlowVisualizer({
         onNodeDragStop={handleNodeDragStop}
         onNodeClick={handleNodeClick}
         onSelectionChange={handleSelectionChange}
-        fitView
+        minZoom={FLOW_MIN_ZOOM}
+        maxZoom={FLOW_MAX_ZOOM}
         nodesDraggable={editable}
         nodesConnectable={false}
         elementsSelectable
       >
+        <OpeningViewport nodes={openingNodes} />
         <Background gap={24} color={theme === 'dark' ? '#334155' : '#e2e8f0'} />
         <Controls />
         <MiniMap nodeColor={(node) => getNodeColor(node.type)} />
       </ReactFlow>
     </div>
   );
+}
+
+/** Remounts the canvas when `diagramId` changes so the opening frame runs again. With no id, one mount frames once. */
+export function EventFlowVisualizer(props: EventFlowVisualizerProps) {
+  const frameKey = props.diagramId === undefined ? 'open' : `id:${props.diagramId}`;
+  return <EventFlowCanvas key={frameKey} {...props} />;
 }
 
 export default EventFlowVisualizer;

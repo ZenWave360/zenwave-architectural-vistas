@@ -13,6 +13,12 @@ export interface RenderBundle {
   serviceGraph?: ServiceViewModel | null;
   viewMode?: ViewMode;
   displaySettings?: DiagramDisplaySettings;
+  /**
+   * A host should send something stable for one diagram, such as the document URI and the flow name.
+   * diagramId belongs to the diagrams in the same renderBundle; a bundle with a graph and no diagramId has no identity.
+   * A bundle that changes only viewMode or display settings leaves the identity alone.
+   */
+  diagramId?: string;
 }
 
 export interface BridgeMessage {
@@ -75,6 +81,7 @@ window.addEventListener('message', (event: MessageEvent) => {
         serviceGraph: (msg.payload?.serviceGraph ?? null),
         viewMode: msg.payload?.viewMode,
         displaySettings: msg.payload?.displaySettings,
+        diagramId: typeof msg.payload?.diagramId === 'string' ? msg.payload.diagramId : undefined,
       });
     } else {
       pending.push(msg);

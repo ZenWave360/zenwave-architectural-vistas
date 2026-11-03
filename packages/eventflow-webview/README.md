@@ -97,7 +97,7 @@ Hosts send messages with `window.postMessage` semantics: VS Code `webview.postMe
 
 | `type` | `payload` | Effect |
 | --- | --- | --- |
-| `renderBundle` | `{ flowGraph?, serviceGraph?, viewMode?: "flow" \| "services", displaySettings?: { humanizeLabels?: boolean } }` | Shows the given view models. Pass the server's `flowGraph` and `serviceGraph` unchanged. A missing or `null` graph shows a waiting state for that view. `displaySettings` is merged into the current settings. |
+| `renderBundle` | `{ flowGraph?, serviceGraph?, viewMode?: "flow" \| "services", displaySettings?: { humanizeLabels?: boolean }, diagramId?: string }` | Shows the given view models. Pass the server's `flowGraph` and `serviceGraph` unchanged. A missing or `null` graph shows a waiting state for that view. `displaySettings` is merged into the current settings. A host should send something stable for one diagram, such as the document URI and the flow name, as `diagramId`. `diagramId` belongs to the diagrams in the same `renderBundle`; a bundle with a graph and no `diagramId` has no identity. A bundle that changes only `viewMode` or display settings leaves the identity alone. |
 | `setViewMode` | `{ viewMode: "flow" \| "services" }` | Switches the view without resending the model. In `webview-toolbar/` the selector moves too, and the page sends no `viewModeChanged`. |
 | `setDisplaySettings` | `{ displaySettings: { humanizeLabels?: boolean } }` | Merged into the current settings; fields not sent keep their values. |
 | `highlightNode` | `{ nodeId: string \| null }` | Highlights the flow node with that id (for example a hierarchy node's `viewNodeIds` entry); `null` clears it. |

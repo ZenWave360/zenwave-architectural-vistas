@@ -1,13 +1,23 @@
-/* Colours follow the VS Code theme when the host provides it, with plain fallbacks elsewhere. */
-.view-selector {
+/* Colours follow the VS Code theme when the host provides it, with plain fallbacks elsewhere.
+   The bar is full width and the controls sit at its end, so a variant selector can be added beside them. */
+.eventflow-toolbar {
   display: flex;
-  flex: 0 0 auto;
-  gap: 2px;
+  flex: 1 1 auto;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
   padding: 4px 8px;
   border-bottom: 1px solid var(--vscode-panel-border, #d4d4d8);
   background: var(--vscode-editor-background, #ffffff);
   color: var(--vscode-foreground, #1f2937);
   font-size: 12px;
+}
+
+.view-selector {
+  display: flex;
+  flex: 0 0 auto;
+  gap: 2px;
 }
 
 .view-selector__option {
