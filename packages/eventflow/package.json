@@ -34,7 +34,8 @@
   },
   "scripts": {
     "build": "vite build --configLoader runner && tsc -p tsconfig.build.json",
-    "check": "tsc --noEmit -p tsconfig.json"
+    "check": "tsc --noEmit -p tsconfig.json",
+    "test": "node --test \"test/*.test.ts\""
   },
   "dependencies": {
     "@reactflow/node-resizer": "^2.2.14",

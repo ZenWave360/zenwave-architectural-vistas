@@ -21,14 +21,17 @@ createRoot(rootElement).render(
     initialServiceViewModel={import.meta.env.DEV ? devFixtures.serviceViewModel : null}
   >
     {({ viewMode, setViewMode }) => (
-      <ViewSelector
-        viewMode={viewMode}
-        onUserChange={(next) => {
-          if (next === viewMode) return;
-          setViewMode(next);
-          postToHost(viewModeChangedMessage(next));
-        }}
-      />
+      // EF-R12's variant selector will be a sibling before ViewSelector, in this right-aligned bar.
+      <div className="eventflow-toolbar">
+        <ViewSelector
+          viewMode={viewMode}
+          onUserChange={(next) => {
+            if (next === viewMode) return;
+            setViewMode(next);
+            postToHost(viewModeChangedMessage(next));
+          }}
+        />
+      </div>
     )}
   </EventFlowPage>
 );

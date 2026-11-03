@@ -29,6 +29,12 @@ export interface RenderBundleMessage {
     serviceGraph?: unknown;
     viewMode?: EventFlowViewMode;
     displaySettings?: EventFlowDisplaySettings;
+    /**
+     * A host should send something stable for one diagram, such as the document URI and the flow name.
+     * diagramId belongs to the diagrams in the same renderBundle; a bundle with a graph and no diagramId has no identity.
+     * A bundle that changes only viewMode or display settings leaves the identity alone.
+     */
+    diagramId?: string;
   };
 }
 

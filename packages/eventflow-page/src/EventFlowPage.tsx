@@ -60,6 +60,7 @@ function applyBridgeMessage(
       serviceGraph: message.payload?.serviceGraph ?? null,
       viewMode: message.payload?.viewMode,
       displaySettings: message.payload?.displaySettings,
+      diagramId: typeof message.payload?.diagramId === 'string' ? message.payload.diagramId : undefined,
     });
   }
 
@@ -87,6 +88,7 @@ export function EventFlowPage({ initialFlowViewModel = null, initialServiceViewM
   const [viewMode, setViewMode] = useState<ViewMode>('flow');
   const [displaySettings, setDisplaySettings] = useState<DiagramDisplaySettings>({ humanizeLabels: true });
   const [highlightedNodeIds, setHighlightedNodeIds] = useState<string[]>([]);
+  const [diagramId, setDiagramId] = useState<string | undefined>(undefined);
 
   useEffect(() => {
     const renderBundle = (bundle: RenderBundle) => {
@@ -101,6 +103,12 @@ export function EventFlowPage({ initialFlowViewModel = null, initialServiceViewM
       }
       if (bundle.displaySettings) {
         setDisplaySettings((current) => ({ ...current, ...bundle.displaySettings }));
+      }
+      // diagramId belongs to the graphs in this bundle. View and display settings alone leave it.
+      if (typeof bundle.diagramId === 'string') {
+        setDiagramId(bundle.diagramId);
+      } else if (bundle.flowGraph != null || bundle.serviceGraph != null) {
+        setDiagramId(undefined);
       }
     };
 
@@ -142,6 +150,7 @@ export function EventFlowPage({ initialFlowViewModel = null, initialServiceViewM
     diagram = (
       <ServiceMapVisualizer
         serviceViewModel={serviceViewModel}
+        diagramId={diagramId}
         editable={true}
         displaySettings={displaySettings}
       />
@@ -150,6 +159,7 @@ export function EventFlowPage({ initialFlowViewModel = null, initialServiceViewM
     diagram = (
       <EventFlowVisualizer
         flowViewModel={flowViewModel!}
+        diagramId={diagramId}
         editable={true}
         displaySettings={displaySettings}
         highlightedNodeIds={highlightedNodeIds}
@@ -163,7 +173,7 @@ export function EventFlowPage({ initialFlowViewModel = null, initialServiceViewM
 
   return (
     <div className="eventflow-page">
-      {children({ viewMode, setViewMode })}
+      <div className="eventflow-page__toolbar">{children({ viewMode, setViewMode })}</div>
       <div className="eventflow-page__diagram">{diagram}</div>
     </div>
   );
