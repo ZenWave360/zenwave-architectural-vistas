@@ -13,7 +13,7 @@ export declare const EVENTFLOW_WEBVIEW_OUTBOUND_MESSAGES: readonly ['webviewRead
 
 export declare const EVENTFLOW_WEBVIEW_TOOLBAR_DIRECTORY: 'webview-toolbar';
 export declare const EVENTFLOW_WEBVIEW_TOOLBAR_ENTRY: 'webview-toolbar/index.html';
-export declare const EVENTFLOW_WEBVIEW_TOOLBAR_OUTBOUND_MESSAGES: readonly ['webviewReady', 'viewModeChanged', 'variantChanged'];
+export declare const EVENTFLOW_WEBVIEW_TOOLBAR_OUTBOUND_MESSAGES: readonly ['webviewReady', 'viewModeChanged', 'variantChanged', 'savePositions'];
 
 export type EventFlowViewMode = 'flow' | 'services';
 
@@ -53,6 +53,13 @@ export interface RenderBundleMessage {
      * The page does not choose or lay out a graph for this field. It shows flowGraph as sent.
      */
     variant?: string | null;
+    /**
+     * What the host did with the positions saved for this flow. Omit to leave the current value. The toolbar page
+     * notes exists true with applied false ("Saved positions do not match this flow; automatic layout", with the
+     * number of missing node ids when given) and may show a subtle indicator for applied true. The minimal page shows nothing.
+     * Not shown while a variant is on screen.
+     */
+    savedPositions?: { exists: boolean; applied: boolean; missing?: string[] };
   };
 }
 
@@ -113,4 +120,15 @@ export interface ViewModeChangedMessage {
 export interface VariantChangedMessage {
   type: 'variantChanged';
   payload: { variant: string | null };
+}
+
+/**
+ * Page to host, sent by the page in webview-toolbar/ when the user clicks Save positions. The button shows only in the
+ * Flow view of the full diagram, after a node was moved since the last renderBundle with a graph. positions holds every
+ * node of the full diagram as shown, by node id, rounded to whole numbers. The host writes all of them or none, and
+ * discarding saved positions is the host's. Never sent for a variant, and the page in webview/ never sends it.
+ */
+export interface SavePositionsMessage {
+  type: 'savePositions';
+  payload: { positions: Record<string, { x: number; y: number }> };
 }

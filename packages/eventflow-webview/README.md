@@ -101,11 +101,27 @@ graph for that choice. It does not send `variantChanged` when that bundle, or an
 choice. The dropdown moves at the user's click, and a later host bundle replaces the selection without a message.
 The page in `webview/` never sends it. A host may ignore it, so adding it did not change `protocolVersion`.
 
+### Page to host: `savePositions`
+
+Sent only by the page in `webview-toolbar/`, when the user clicks **Save positions** on the toolbar:
+
+```json
+{ "type": "savePositions", "payload": { "positions": { "event:Start": { "x": 40, "y": 80 }, "command:PlaceOrder": { "x": 320, "y": 80 } } } }
+```
+
+The button is on the right of the toolbar. It shows only in the Flow view of the full diagram, and only after the user
+moved a node since the last `renderBundle` that carried a graph. It is hidden again after the click, when a new
+graph arrives, in a variant, and in Systems. `positions` has every node of the full diagram as it is shown, by node
+id, rounded to whole numbers. The host writes all of them or none; discarding saved positions is the host's. The page
+in `webview/` has no button and never sends it. A host may ignore it, so `protocolVersion` stays 1.
+
 | Direction | `type` | `payload` | Sent by |
 | --- | --- | --- | --- |
 | page to host | `webviewReady` | `{ protocol, protocolVersion }` | both pages, once, when loaded |
 | page to host | `viewModeChanged` | `{ viewMode: "flow" \| "services" }` | `webview-toolbar/` only, for the user's own choice |
 | page to host | `variantChanged` | `{ variant: string \| null }` | `webview-toolbar/` only, for the user's own choice. `null` is the full diagram |
+
+| page to host | `savePositions` | `{ positions: { [nodeId]: { x, y } } }` | `webview-toolbar/` only, after the user clicks Save positions |
 
 A host that receives no `webviewReady` is looking at a page that is still loading or failed to load.
 `payload` was added in protocol version 1; a page without it predates versioning.
@@ -177,10 +193,17 @@ is the graph on screen, so the opening zoom runs when the variant's graph arrive
 
 ### Node positions
 
-The page does not report node moves, on the full diagram or on a variant. Dragging a node updates the canvas only.
-The visualizers can hand a moved graph back through a callback, and the page does not subscribe, so there is no
-position message to suppress. A variant never reads or writes saved positions. The next `renderBundle` replaces the
-graph with what the host sends, so a node moved in a variant is gone when the full diagram comes back.
+Dragging a node updates the canvas only. The page tells the host about positions only through `savePositions`, when
+the user clicks Save positions in `webview-toolbar/`, and never for a variant. A variant never reads or writes saved
+positions. The next `renderBundle` replaces the graph with what the host sends.
+
+### `savedPositions`
+
+`renderBundle` may carry `savedPositions: { exists, applied, missing? }` (`missing` is the array of node ids the saved positions do not cover), what the host did with the positions saved
+for this flow. When `exists` is true and `applied` is false, `webview-toolbar/` shows a small note, "Saved positions do
+not match this flow; automatic layout", with the number of `missing` ids when given. When `applied` is true it shows a subtle
+"Saved layout". Without the field, or with `exists: false`, nothing is shown, and nothing is shown for a variant.
+The minimal page shows nothing.
 
 ### IntelliJ
 
