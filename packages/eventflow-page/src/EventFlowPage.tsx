@@ -6,7 +6,7 @@ import {
   type FlowViewModel,
   type ServiceViewModel,
 } from '@zenwave360/vistas-eventflow/react';
-import type { BridgeMessage, RenderBundle, ViewMode } from './bootstrap';
+import { readRenderBundle, type BridgeMessage, type FlowVariant, type RenderBundle, type ViewMode } from './bootstrap';
 
 /** What an embedding application can read and change while the page is showing. */
 export interface EventFlowPageState {
@@ -14,6 +14,61 @@ export interface EventFlowPageState {
   viewMode: ViewMode;
   /** Changes the view. It sends nothing to the host: the embedding application decides whether to tell it. */
   setViewMode: (viewMode: ViewMode) => void;
+  /** Variants the host has listed, in that order. Empty when the flow has none. */
+  variants: readonly FlowVariant[];
+  /** The variant the dropdown shows. Null is the full diagram. It can move ahead of the graph on screen. */
+  variantId: string | null;
+  /**
+   * Records the user's choice in the dropdown. It does not change the graph and sends nothing to the host:
+   * the embedding application tells the host, and the graph changes when the next renderBundle arrives.
+   */
+  setVariantId: (variantId: string | null) => void;
+}
+
+interface VariantState {
+  variants: FlowVariant[];
+  variantId: string | null;
+  /** The variant whose graph is on screen. Null is the full diagram. This, not the dropdown, frames the flow. */
+  shownVariantId: string | null;
+}
+
+const NO_VARIANTS: VariantState = { variants: [], variantId: null, shownVariantId: null };
+
+function listedVariant(variants: readonly FlowVariant[], variantId: string | null): string | null {
+  if (!variantId) return null;
+  return variants.some((item) => item.id === variantId) ? variantId : null;
+}
+
+/** Applies the host's variants and variant. An id that is not in the list selects the full diagram. */
+function applyHostVariants(current: VariantState, bundle: RenderBundle): VariantState {
+  if (bundle.variants === undefined && bundle.variant === undefined) return current;
+  const variants = bundle.variants ?? current.variants;
+  const shownVariantId = bundle.variant !== undefined
+    ? listedVariant(variants, bundle.variant)
+    : listedVariant(variants, current.shownVariantId);
+  const variantId = bundle.variant !== undefined
+    ? shownVariantId
+    : listedVariant(variants, current.variantId);
+  if (
+    variants === current.variants
+    && variantId === current.variantId
+    && shownVariantId === current.shownVariantId
+  ) {
+    return current;
+  }
+  return { variants, variantId, shownVariantId };
+}
+
+/**
+ * Identity the flow canvas frames on.
+ *
+ * A variant bundle keeps the full diagram's diagramId: that id names the flow, and a variant is the same flow.
+ * The shown variant is a different laid-out graph, so the identity adds its id and the opening zoom runs again.
+ * The full diagram uses diagramId alone. With no diagramId and no variant, the flow still has no identity.
+ */
+function flowFramingDiagramId(diagramId: string | undefined, shownVariantId: string | null): string | undefined {
+  if (!shownVariantId) return diagramId;
+  return `${diagramId ?? ''}\u0000${shownVariantId}`;
 }
 
 export interface EventFlowPageProps {
@@ -55,13 +110,7 @@ function applyBridgeMessage(
   highlightNode: (nodeId: string | null) => void
 ) {
   if (message.type === 'renderBundle') {
-    renderBundle({
-      flowGraph: message.payload?.flowGraph ?? null,
-      serviceGraph: message.payload?.serviceGraph ?? null,
-      viewMode: message.payload?.viewMode,
-      displaySettings: message.payload?.displaySettings,
-      diagramId: typeof message.payload?.diagramId === 'string' ? message.payload.diagramId : undefined,
-    });
+    renderBundle(readRenderBundle(message.payload));
   }
 
   if (message.type === 'setViewMode' && message.payload?.viewMode) {
@@ -89,6 +138,14 @@ export function EventFlowPage({ initialFlowViewModel = null, initialServiceViewM
   const [displaySettings, setDisplaySettings] = useState<DiagramDisplaySettings>({ humanizeLabels: true });
   const [highlightedNodeIds, setHighlightedNodeIds] = useState<string[]>([]);
   const [diagramId, setDiagramId] = useState<string | undefined>(undefined);
+  const [variantState, setVariantState] = useState<VariantState>(NO_VARIANTS);
+
+  const setVariantId = (variantId: string | null) => {
+    setVariantState((current) => {
+      const next = listedVariant(current.variants, variantId);
+      return next === current.variantId ? current : { ...current, variantId: next };
+    });
+  };
 
   useEffect(() => {
     const renderBundle = (bundle: RenderBundle) => {
@@ -109,6 +166,9 @@ export function EventFlowPage({ initialFlowViewModel = null, initialServiceViewM
         setDiagramId(bundle.diagramId);
       } else if (bundle.flowGraph != null || bundle.serviceGraph != null) {
         setDiagramId(undefined);
+      }
+      if (bundle.variants !== undefined || bundle.variant !== undefined) {
+        setVariantState((current) => applyHostVariants(current, bundle));
       }
     };
 
@@ -141,6 +201,9 @@ export function EventFlowPage({ initialFlowViewModel = null, initialServiceViewM
     };
   }, []);
 
+  // Drags stay on the canvas. The visualizers can report a moved graph through onFlowViewModelChange and
+  // onServiceViewModelChange, and this page passes neither, so a node move is never a host message. A move
+  // while a variant is shown is the same: nothing is reported, and the host's next renderBundle replaces the graph.
   let diagram: ReactNode;
   if (viewMode === 'flow' && !flowViewModel) {
     diagram = <EmptyState message="Waiting for graph data from host..." />;
@@ -159,7 +222,7 @@ export function EventFlowPage({ initialFlowViewModel = null, initialServiceViewM
     diagram = (
       <EventFlowVisualizer
         flowViewModel={flowViewModel!}
-        diagramId={diagramId}
+        diagramId={flowFramingDiagramId(diagramId, variantState.shownVariantId)}
         editable={true}
         displaySettings={displaySettings}
         highlightedNodeIds={highlightedNodeIds}
@@ -173,7 +236,13 @@ export function EventFlowPage({ initialFlowViewModel = null, initialServiceViewM
 
   return (
     <div className="eventflow-page">
-      <div className="eventflow-page__toolbar">{children({ viewMode, setViewMode })}</div>
+      <div className="eventflow-page__toolbar">{children({
+        viewMode,
+        setViewMode,
+        variants: variantState.variants,
+        variantId: variantState.variantId,
+        setVariantId,
+      })}</div>
       <div className="eventflow-page__diagram">{diagram}</div>
     </div>
   );

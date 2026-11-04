@@ -28,5 +28,12 @@ export const EVENTFLOW_WEBVIEW_TOOLBAR_DIRECTORY = 'webview-toolbar';
 /** Entry of the page with a selector, relative to the package root. */
 export const EVENTFLOW_WEBVIEW_TOOLBAR_ENTRY = 'webview-toolbar/index.html';
 
-/** Message types the page with a selector sends to its host. viewModeChanged is only sent for the user's own choice. */
-export const EVENTFLOW_WEBVIEW_TOOLBAR_OUTBOUND_MESSAGES = Object.freeze(['webviewReady', 'viewModeChanged']);
+/**
+ * Message types the page with selectors sends to its host.
+ * viewModeChanged and variantChanged are only sent for the user's own choice.
+ */
+export const EVENTFLOW_WEBVIEW_TOOLBAR_OUTBOUND_MESSAGES = Object.freeze([
+  'webviewReady',
+  'viewModeChanged',
+  'variantChanged',
+]);

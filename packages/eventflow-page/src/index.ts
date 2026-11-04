@@ -1,9 +1,11 @@
 // The host bridge must be evaluated before React and the visualizers.
 export {
   postToHost,
+  variantChangedMessage,
   viewModeChangedMessage,
   webviewReadyMessage,
   type BridgeMessage,
+  type FlowVariant,
   type RenderBundle,
   type ViewMode,
 } from './bootstrap';
