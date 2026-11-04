@@ -16,7 +16,7 @@ export function SavedPositionsNote({ saved }: { saved: SavedPositions | undefine
   if (saved.applied) {
     return <span className="saved-positions-note saved-positions-note--applied">Saved layout</span>;
   }
-  const missing = saved.missing !== undefined && saved.missing > 0 ? ` (${saved.missing} missing)` : '';
+  const missing = saved.missing !== undefined && saved.missing.length > 0 ? ` (${saved.missing.length} missing)` : '';
   return (
     <span className="saved-positions-note" role="status">
       Saved positions do not match this flow; automatic layout{missing}

@@ -200,7 +200,10 @@ describe('EventFlow save positions', { skip }, () => {
       await page.evaluate(post({ type: 'setViewMode', payload: { viewMode: 'services' } }));
       await page.waitFor(`${saveButton} === null`);
       await page.evaluate(post({ type: 'setViewMode', payload: { viewMode: 'flow' } }));
-      await page.waitFor(`${saveButton} !== null`);
+      await page.waitFor(hasNode('event:Start'));
+      await page.evaluate(frames);
+      // The diagram was redrawn from the server graph, so the earlier move is not on screen and cannot be saved.
+      assert.equal(await page.evaluate(`${saveButton} === null`), true);
       assert.deepEqual(await page.evaluate(saveMessages), []);
     } finally {
       await browser.closePage(page);
@@ -210,7 +213,7 @@ describe('EventFlow save positions', { skip }, () => {
   test('minimal page: no control, no note, and never posts savePositions', async () => {
     const page = await openPage(minimalServer);
     try {
-      await page.evaluate(post(bundle({ savedPositions: { exists: true, applied: false, missing: 2 } })));
+      await page.evaluate(post(bundle({ savedPositions: { exists: true, applied: false, missing: ['a', 'b'] } })));
       await page.waitFor(hasNode('command:PlaceOrder'));
       await settled(page);
       const before = await dragNode(page, 'event:Start', 140, 30);
@@ -230,7 +233,7 @@ describe('EventFlow save positions', { skip }, () => {
       await page.waitFor(hasNode('command:PlaceOrder'));
       assert.equal(await page.evaluate(note), null);
 
-      await page.evaluate(post(bundle({ savedPositions: { exists: true, applied: false, missing: 3 } })));
+      await page.evaluate(post(bundle({ savedPositions: { exists: true, applied: false, missing: ['a', 'b', 'c'] } })));
       await page.waitFor(`${note} !== null`);
       assert.equal(await page.evaluate(note), 'Saved positions do not match this flow; automatic layout (3 missing)');
 
@@ -243,11 +246,127 @@ describe('EventFlow save positions', { skip }, () => {
       await page.evaluate(post(bundle({ savedPositions: { exists: false, applied: false } })));
       await page.waitFor(`${note} === null`);
 
-      await page.evaluate(post(bundle({ savedPositions: { exists: true, applied: false, missing: 1 } })));
+      await page.evaluate(post(bundle({ savedPositions: { exists: true, applied: false, missing: ['a'] } })));
       await page.waitFor(`${note} !== null`);
       await page.evaluate(post(bundle({ flowGraph: flowGraph(variantNodes), variants, variant: 'OrderCancelled' })));
       await page.waitFor(`${note} === null`);
       assert.deepEqual(await page.evaluate(saveMessages), []);
+    } finally {
+      await browser.closePage(page);
+    }
+  });
+
+  const realisticNodes = () => [
+    { ...flowNode('event:OrderPlaced', 'EVENT', 40, 100), dimensions: { width: 160, height: 48 } },
+    { ...flowNode('command:PlaceOrder', 'COMMAND', 320, 100), dimensions: { width: 180, height: 56 } },
+    { ...flowNode('readmodel:Orders', 'READ_MODEL', 600, 101), dimensions: { width: 124, height: 124 } },
+    { ...flowNode('policy:Notify', 'POLICY', 860, 103), dimensions: { width: 220, height: 64 } },
+  ];
+  const drawn = (page) => page.evaluate(`Object.fromEntries([...document.querySelectorAll('.react-flow__node')]
+    .map((node) => [node.dataset.id, node.style.transform]))`);
+  const serverPositions = (nodes) => Object.fromEntries(nodes.map((node) => [node.id, node.position]));
+
+  test('toolbar page: saved positions are server coordinates, so saving and reopening never drifts', async () => {
+    const page = await openPage(toolbarServer);
+    try {
+      const nodes = realisticNodes();
+      await page.evaluate(post(bundle({ flowGraph: flowGraph(nodes) })));
+      await page.waitFor(hasNode('policy:Notify'));
+      await settled(page);
+      const before = await drawn(page);
+
+      await dragNode(page, 'command:PlaceOrder', 0, 40);
+      await page.waitFor(`${saveButton} !== null`);
+      await page.evaluate(`${saveButton}.click()`);
+      const first = (await page.evaluate(saveMessages))[0].payload.positions;
+      const moved = (await drawn(page))['command:PlaceOrder'];
+      const parse = (transform) => transform.match(/translate\((-?[\d.]+)px,\s*(-?[\d.]+)px\)/).slice(1).map(Number);
+      const [bx, by] = parse(before['command:PlaceOrder']);
+      const [mx, my] = parse(moved);
+      const expected = serverPositions(nodes);
+      for (const id of Object.keys(expected)) {
+        if (id === 'command:PlaceOrder') continue;
+        assert.deepEqual(first[id], expected[id], `${id} is unchanged`);
+      }
+      assert.deepEqual(first['command:PlaceOrder'], {
+        x: Math.round(expected['command:PlaceOrder'].x + (mx - bx)),
+        y: Math.round(expected['command:PlaceOrder'].y + (my - by)),
+      });
+      assert.ok(my - by > 5 && Math.abs(mx - bx) < 1, `the node moved down only: ${mx - bx}, ${my - by}`);
+
+      // The saved positions come back as the server's positions: the drawing equals what it was.
+      const reopened = nodes.map((node) => ({ ...node, position: first[node.id] }));
+      await page.evaluate(post(bundle({ flowGraph: flowGraph(reopened) })));
+      await page.waitFor(`${saveButton} === null`);
+      await page.evaluate(frames);
+      // Saved positions are whole numbers, so the moved node is drawn where it was, rounded.
+      assert.deepEqual(await drawn(page), { ...before, 'command:PlaceOrder': `translate(${Math.round(mx)}px, ${Math.round(my)}px)` });
+
+      // Saving a second time without moving anything keeps every position.
+      await dragNode(page, 'readmodel:Orders', 0, 20);
+      await page.waitFor(`${saveButton} !== null`);
+      await page.evaluate(`${saveButton}.click()`);
+      const second = (await page.evaluate(saveMessages))[1].payload.positions;
+      assert.deepEqual(second['command:PlaceOrder'], first['command:PlaceOrder']);
+      assert.deepEqual(second['event:OrderPlaced'], expected['event:OrderPlaced']);
+      assert.deepEqual(second['policy:Notify'], expected['policy:Notify']);
+      assert.deepEqual(page.exceptions, []);
+    } finally {
+      await browser.closePage(page);
+    }
+  });
+
+  test('toolbar page: the control never saves positions that are not on screen', async () => {
+    const page = await openPage(toolbarServer);
+    try {
+      const shown = async () => Object.fromEntries(Object.entries(await drawn(page)).filter(([id]) => !id.includes(':in')));
+      const saveAndCheck = async () => {
+        if (await page.evaluate(`${saveButton} === null`)) return;
+        // Present: it must save exactly what is on screen.
+        const nodes = realisticNodes();
+        const onScreen = await shown();
+        const count = (await page.evaluate(saveMessages)).length;
+        await page.evaluate(`${saveButton}.click()`);
+        const sent = (await page.evaluate(saveMessages))[count].payload.positions;
+        for (const node of nodes) {
+          const [x, y] = onScreen[node.id].match(/-?[\d.]+/g).map(Number);
+          const dims = { width: Math.max(node.dimensions.width, 180), height: Math.max(node.dimensions.height, 112) };
+          assert.deepEqual(sent[node.id], {
+            x: Math.round(x + (dims.width - node.dimensions.width) / 2),
+            y: Math.round(y + (dims.height - node.dimensions.height) / 2),
+          });
+        }
+      };
+      await page.evaluate(post(bundle({ flowGraph: flowGraph(realisticNodes()), serviceGraph: null })));
+      await page.waitFor(hasNode('policy:Notify'));
+      await settled(page);
+
+      await dragNode(page, 'event:OrderPlaced', 100, 30);
+      await page.waitFor(`${saveButton} !== null`);
+      await page.evaluate(`window.setDisplaySettings({ humanizeLabels: false })`);
+      await page.evaluate(frames);
+      assert.equal(await page.evaluate(`${saveButton} === null`), true);
+      await saveAndCheck();
+      assert.deepEqual(await page.evaluate(saveMessages), [], 'a redraw from the server graph hides the control');
+
+      await dragNode(page, 'event:OrderPlaced', 100, 30);
+      await page.waitFor(`${saveButton} !== null`);
+      await page.evaluate(`window.highlightNode('command:PlaceOrder')`);
+      await page.evaluate(frames);
+      assert.equal(await page.evaluate(`${saveButton} === null`), true);
+      await saveAndCheck();
+      assert.deepEqual(await page.evaluate(saveMessages), []);
+
+      await dragNode(page, 'event:OrderPlaced', 100, 30);
+      await page.waitFor(`${saveButton} !== null`);
+      await page.evaluate(post({ type: 'setViewMode', payload: { viewMode: 'services' } }));
+      await page.evaluate(post({ type: 'setViewMode', payload: { viewMode: 'flow' } }));
+      await page.waitFor(hasNode('policy:Notify'));
+      await settled(page);
+      assert.equal(await page.evaluate(`${saveButton} === null`), true);
+      await saveAndCheck();
+      assert.deepEqual(await page.evaluate(saveMessages), []);
+      assert.deepEqual(page.exceptions, []);
     } finally {
       await browser.closePage(page);
     }

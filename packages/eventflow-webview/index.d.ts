@@ -56,10 +56,10 @@ export interface RenderBundleMessage {
     /**
      * What the host did with the positions saved for this flow. Omit to leave the current value. The toolbar page
      * notes exists true with applied false ("Saved positions do not match this flow; automatic layout", with the
-     * missing count when given) and may show a subtle indicator for applied true. The minimal page shows nothing.
+     * number of missing node ids when given) and may show a subtle indicator for applied true. The minimal page shows nothing.
      * Not shown while a variant is on screen.
      */
-    savedPositions?: { exists: boolean; applied: boolean; missing?: number };
+    savedPositions?: { exists: boolean; applied: boolean; missing?: string[] };
   };
 }
 

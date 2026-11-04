@@ -123,6 +123,18 @@ function getRenderedPosition(node: FlowNode, renderedDimensions: Dimensions): Po
   };
 }
 
+/** The inverse of getRenderedPosition: where the server has the node, given where it is drawn. */
+function getServerPosition(node: FlowNode, drawn: Point): Point {
+  if (!node.dimensions) {
+    return { x: drawn.x, y: drawn.y };
+  }
+  const renderedDimensions = getRenderedDimensions(node);
+  return {
+    x: drawn.x + ((renderedDimensions.width - node.dimensions.width) / 2),
+    y: drawn.y + ((renderedDimensions.height - node.dimensions.height) / 2),
+  };
+}
+
 function getNodeType(nodeType: FlowNodeType): string {
   return getNodeTypeKey(nodeType);
 }
@@ -562,11 +574,8 @@ function mergeEditableNodesIntoFlowViewModel(
 
     return {
       ...node,
-      position: {
-        x: editableNode.position.x,
-        y: editableNode.position.y,
-      } satisfies Point,
-      dimensions: getNodeDimensions(editableNode, node.dimensions),
+      position: getServerPosition(node, editableNode.position),
+      dimensions: node.dimensions ?? getNodeDimensions(editableNode, node.dimensions),
     };
   });
 

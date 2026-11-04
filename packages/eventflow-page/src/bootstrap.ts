@@ -18,8 +18,8 @@ export interface FlowVariant {
 export interface SavedPositions {
   exists: boolean;
   applied: boolean;
-  /** Nodes of the flow that the saved positions do not cover. Only meaningful when exists is true and applied is false. */
-  missing?: number;
+  /** Ids of the nodes of the flow that the saved positions do not cover. Only meaningful when exists is true and applied is false. */
+  missing?: string[];
 }
 
 export interface RenderBundle {
@@ -131,8 +131,8 @@ function readVariants(value: unknown): FlowVariant[] {
 function readSavedPositions(value: unknown): SavedPositions | undefined {
   if (!isRecord(value) || typeof value.exists !== 'boolean') return undefined;
   const saved: SavedPositions = { exists: value.exists, applied: value.applied === true };
-  if (typeof value.missing === 'number' && Number.isFinite(value.missing) && value.missing >= 0) {
-    saved.missing = Math.floor(value.missing);
+  if (Array.isArray(value.missing)) {
+    saved.missing = value.missing.filter((id): id is string => typeof id === 'string');
   }
   return saved;
 }

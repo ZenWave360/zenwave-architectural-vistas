@@ -180,6 +180,13 @@ export function EventFlowPage({ initialFlowViewModel = null, initialServiceViewM
     setPositionsMoved(false);
   };
 
+  // The visualizer redraws from the server graph whenever its inputs change and unmounts outside the flow view,
+  // so moves made before that are no longer on screen and must not be saved.
+  useEffect(() => {
+    movedFlowRef.current = null;
+    setPositionsMoved(false);
+  }, [flowViewModel, displaySettings, highlightedNodeIds, viewMode, variantState.shownVariantId]);
+
   const setVariantId = (variantId: string | null) => {
     setVariantState((current) => {
       const next = listedVariant(current.variants, variantId);

@@ -199,9 +199,9 @@ positions. The next `renderBundle` replaces the graph with what the host sends.
 
 ### `savedPositions`
 
-`renderBundle` may carry `savedPositions: { exists, applied, missing? }`, what the host did with the positions saved
+`renderBundle` may carry `savedPositions: { exists, applied, missing? }` (`missing` is the array of node ids the saved positions do not cover), what the host did with the positions saved
 for this flow. When `exists` is true and `applied` is false, `webview-toolbar/` shows a small note, "Saved positions do
-not match this flow; automatic layout", with the `missing` count when given. When `applied` is true it shows a subtle
+not match this flow; automatic layout", with the number of `missing` ids when given. When `applied` is true it shows a subtle
 "Saved layout". Without the field, or with `exists: false`, nothing is shown, and nothing is shown for a variant.
 The minimal page shows nothing.
 
