@@ -24,7 +24,8 @@ export enum FlowNodeType {
   COMMAND = "COMMAND",
   EVENT = "EVENT",
   POLICY = "POLICY",
-  END = "END"
+  END = "END",
+  READ_MODEL = "READ_MODEL"
 }
 
 /**

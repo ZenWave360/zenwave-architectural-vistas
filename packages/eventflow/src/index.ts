@@ -62,6 +62,8 @@ export { EndNode } from './components/EndNode';
 export type { EndNodeData } from './components/EndNode';
 export { OutcomeNode } from './components/OutcomeNode';
 export type { OutcomeNodeData } from './components/OutcomeNode';
+export { ReadModelNode } from './components/ReadModelNode';
+export type { ReadModelNodeData } from './components/ReadModelNode';
 
 // Edge components (for customization)
 export { CausationEdge } from './components/CausationEdge';

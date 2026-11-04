@@ -26,6 +26,8 @@ import { EventNode } from './components/EventNode';
 import { PolicyNode } from './components/PolicyNode';
 import { StartNode } from './components/StartNode';
 import { EndNode } from './components/EndNode';
+import { ReadModelNode } from './components/ReadModelNode';
+import { getNodeTypeKey } from './nodeTypeKey';
 import { OutcomeNode } from './components/OutcomeNode';
 import { CausationEdge } from './components/CausationEdge';
 import { DiagramDisplaySettings, humanizeLabel } from './labelFormatting';
@@ -120,20 +122,7 @@ function getRenderedPosition(node: FlowNode, renderedDimensions: Dimensions): Po
 }
 
 function getNodeType(nodeType: FlowNodeType): string {
-  switch (nodeType) {
-    case FlowNodeType.START:
-      return 'startNode';
-    case FlowNodeType.COMMAND:
-      return 'commandNode';
-    case FlowNodeType.EVENT:
-      return 'eventNode';
-    case FlowNodeType.POLICY:
-      return 'policyNode';
-    case FlowNodeType.END:
-      return 'endNode';
-    default:
-      return 'eventNode';
-  }
+  return getNodeTypeKey(nodeType);
 }
 
 function getNodeColor(nodeType?: string): string {
@@ -142,6 +131,7 @@ function getNodeColor(nodeType?: string): string {
   if (nodeType === 'eventNode') return '#f97316';
   if (nodeType === 'policyNode') return '#a855f7';
   if (nodeType === 'endNode') return '#ef4444';
+  if (nodeType === 'readModelNode') return '#86efac';
   if (nodeType === 'outcomeNode') return '#e2e8f0';
   return '#cbd5e1';
 }
@@ -599,6 +589,7 @@ function EventFlowCanvas({
     eventNode: EventNode,
     policyNode: PolicyNode,
     endNode: EndNode,
+    readModelNode: ReadModelNode,
     outcomeNode: OutcomeNode,
   }), []);
 
