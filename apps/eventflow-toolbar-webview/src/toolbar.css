@@ -75,3 +75,30 @@
   outline: 1px solid var(--vscode-focusBorder, #2563eb);
   outline-offset: 2px;
 }
+
+.save-positions {
+  flex: 0 0 auto;
+  font: inherit;
+  cursor: pointer;
+  color: var(--vscode-button-secondaryForeground, inherit);
+  background: var(--vscode-button-secondaryBackground, #f4f4f5);
+  border: 1px solid var(--vscode-button-secondaryBackground, #d4d4d8);
+  border-radius: 3px;
+  padding: 2px 10px;
+}
+
+.save-positions:focus-visible {
+  outline: 1px solid var(--vscode-focusBorder, #2563eb);
+  outline-offset: 2px;
+}
+
+/* Unobtrusive: small, muted, and it gives way to the controls when the bar is narrow. */
+.saved-positions-note {
+  flex: 0 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 11px;
+  color: var(--vscode-descriptionForeground, #6b7280);
+}

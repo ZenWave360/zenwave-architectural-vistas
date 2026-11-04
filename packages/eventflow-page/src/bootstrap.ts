@@ -14,6 +14,14 @@ export interface FlowVariant {
   title: string;
 }
 
+/** What the host did with the positions saved for this flow, as the server reported it. */
+export interface SavedPositions {
+  exists: boolean;
+  applied: boolean;
+  /** Nodes of the flow that the saved positions do not cover. Only meaningful when exists is true and applied is false. */
+  missing?: number;
+}
+
 export interface RenderBundle {
   flowGraph?: FlowViewModel | null;
   serviceGraph?: ServiceViewModel | null;
@@ -36,6 +44,8 @@ export interface RenderBundle {
    * The page does not swap graphs for this field: flowGraph is the graph to show, already laid out by the server.
    */
   variant?: string | null;
+  /** Omit to leave the current value. The toolbar page notes a saved layout that did not match. */
+  savedPositions?: SavedPositions;
 }
 
 export interface BridgeMessage {
@@ -88,6 +98,17 @@ export function variantChangedMessage(variantId: string | null) {
   return { type: 'variantChanged', payload: { variant: variantId } } as const;
 }
 
+/** Node id to whole-number position, for every node of the full diagram as shown. */
+export type NodePositions = Record<string, { x: number; y: number }>;
+
+/**
+ * Page to host, sent by a page with a Save positions control. The host writes all of them or none (EF-R14).
+ * Never sent for a variant, and never by the minimal page.
+ */
+export function savePositionsMessage(positions: NodePositions) {
+  return { type: 'savePositions', payload: { positions } } as const;
+}
+
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null;
 }
@@ -105,6 +126,15 @@ function readVariants(value: unknown): FlowVariant[] {
     variants.push({ id, title: typeof title === 'string' && title.length > 0 ? title : id });
   }
   return variants;
+}
+
+function readSavedPositions(value: unknown): SavedPositions | undefined {
+  if (!isRecord(value) || typeof value.exists !== 'boolean') return undefined;
+  const saved: SavedPositions = { exists: value.exists, applied: value.applied === true };
+  if (typeof value.missing === 'number' && Number.isFinite(value.missing) && value.missing >= 0) {
+    saved.missing = Math.floor(value.missing);
+  }
+  return saved;
 }
 
 /** A non-empty string is a variant id. Anything else the host sent, including null, is the full diagram. */
@@ -130,6 +160,10 @@ export function readRenderBundle(payload: unknown): RenderBundle {
   }
   if (Object.prototype.hasOwnProperty.call(record, 'variant')) {
     bundle.variant = readVariant(record.variant);
+  }
+  const savedPositions = readSavedPositions(record.savedPositions);
+  if (savedPositions) {
+    bundle.savedPositions = savedPositions;
   }
   return bundle;
 }

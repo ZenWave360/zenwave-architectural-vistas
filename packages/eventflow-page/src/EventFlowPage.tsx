@@ -1,4 +1,4 @@
-import { useEffect, useState, type ReactNode } from 'react';
+import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
 import {
   EventFlowVisualizer,
   ServiceMapVisualizer,
@@ -6,7 +6,15 @@ import {
   type FlowViewModel,
   type ServiceViewModel,
 } from '@zenwave360/vistas-eventflow/react';
-import { readRenderBundle, type BridgeMessage, type FlowVariant, type RenderBundle, type ViewMode } from './bootstrap';
+import {
+  readRenderBundle,
+  type BridgeMessage,
+  type FlowVariant,
+  type NodePositions,
+  type RenderBundle,
+  type SavedPositions,
+  type ViewMode,
+} from './bootstrap';
 
 /** What an embedding application can read and change while the page is showing. */
 export interface EventFlowPageState {
@@ -23,6 +31,14 @@ export interface EventFlowPageState {
    * the embedding application tells the host, and the graph changes when the next renderBundle arrives.
    */
   setVariantId: (variantId: string | null) => void;
+  /** True when a node of the full diagram was moved since the last renderBundle with a graph, and not saved yet. */
+  canSavePositions: boolean;
+  /** Every node of the full diagram as shown, rounded to whole numbers. Null when no node was moved. */
+  currentPositions: () => NodePositions | null;
+  /** Hides the save control until the next move. The embedding application calls it after sending the positions. */
+  markPositionsSaved: () => void;
+  /** What the host last said about the saved positions of this flow. Undefined until it says. */
+  savedPositions: SavedPositions | undefined;
 }
 
 interface VariantState {
@@ -139,6 +155,30 @@ export function EventFlowPage({ initialFlowViewModel = null, initialServiceViewM
   const [highlightedNodeIds, setHighlightedNodeIds] = useState<string[]>([]);
   const [diagramId, setDiagramId] = useState<string | undefined>(undefined);
   const [variantState, setVariantState] = useState<VariantState>(NO_VARIANTS);
+  const [positionsMoved, setPositionsMoved] = useState(false);
+  const [savedPositions, setSavedPositions] = useState<SavedPositions | undefined>(undefined);
+  const movedFlowRef = useRef<FlowViewModel | null>(null);
+
+  const onFlowViewModelChange = useCallback((moved: FlowViewModel) => {
+    movedFlowRef.current = moved;
+    setPositionsMoved(true);
+  }, []);
+
+  const currentPositions = (): NodePositions | null => {
+    const moved = movedFlowRef.current;
+    if (!moved) return null;
+    const positions: NodePositions = {};
+    for (const node of moved.nodes) {
+      if (!node.position) continue; // not drawn, so not shown
+      positions[node.id] = { x: Math.round(node.position.x), y: Math.round(node.position.y) };
+    }
+    return positions;
+  };
+
+  const markPositionsSaved = () => {
+    movedFlowRef.current = null;
+    setPositionsMoved(false);
+  };
 
   const setVariantId = (variantId: string | null) => {
     setVariantState((current) => {
@@ -151,6 +191,14 @@ export function EventFlowPage({ initialFlowViewModel = null, initialServiceViewM
     const renderBundle = (bundle: RenderBundle) => {
       if (bundle.flowGraph !== undefined) {
         setFlowViewModel(bundle.flowGraph ?? null);
+      }
+      // A new graph replaces what the user moved.
+      if (bundle.flowGraph != null) {
+        movedFlowRef.current = null;
+        setPositionsMoved(false);
+      }
+      if (bundle.savedPositions !== undefined) {
+        setSavedPositions(bundle.savedPositions);
       }
       if (bundle.serviceGraph !== undefined) {
         setServiceViewModel(bundle.serviceGraph ?? null);
@@ -201,9 +249,9 @@ export function EventFlowPage({ initialFlowViewModel = null, initialServiceViewM
     };
   }, []);
 
-  // Drags stay on the canvas. The visualizers can report a moved graph through onFlowViewModelChange and
-  // onServiceViewModelChange, and this page passes neither, so a node move is never a host message. A move
-  // while a variant is shown is the same: nothing is reported, and the host's next renderBundle replaces the graph.
+  // A node move is remembered here and reaches the host only when an application with a Save positions control
+  // sends it. The minimal page has no such control. A move in a variant is remembered too, but canSavePositions
+  // is false there (EF-R12), and the host's next renderBundle replaces the graph.
   let diagram: ReactNode;
   if (viewMode === 'flow' && !flowViewModel) {
     diagram = <EmptyState message="Waiting for graph data from host..." />;
@@ -226,6 +274,7 @@ export function EventFlowPage({ initialFlowViewModel = null, initialServiceViewM
         editable={true}
         displaySettings={displaySettings}
         highlightedNodeIds={highlightedNodeIds}
+        onFlowViewModelChange={onFlowViewModelChange}
       />
     );
   }
@@ -242,6 +291,10 @@ export function EventFlowPage({ initialFlowViewModel = null, initialServiceViewM
         variants: variantState.variants,
         variantId: variantState.variantId,
         setVariantId,
+        canSavePositions: viewMode === 'flow' && positionsMoved && variantState.variantId === null && variantState.shownVariantId === null,
+        currentPositions,
+        markPositionsSaved,
+        savedPositions: variantState.shownVariantId === null ? savedPositions : undefined,
       })}</div>
       <div className="eventflow-page__diagram">{diagram}</div>
     </div>

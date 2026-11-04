@@ -3,7 +3,8 @@ import '@zenwave360/vistas-eventflow-page/bootstrap';
 import '@zenwave360/vistas-eventflow-page/page.css';
 import './toolbar.css';
 import { createRoot } from 'react-dom/client';
-import { EventFlowPage, devFixtures, postToHost, variantChangedMessage, viewModeChangedMessage } from '@zenwave360/vistas-eventflow-page';
+import { EventFlowPage, devFixtures, postToHost, savePositionsMessage, variantChangedMessage, viewModeChangedMessage } from '@zenwave360/vistas-eventflow-page';
+import { SavePositionsButton, SavedPositionsNote } from './SavePositions';
 import { VariantSelector } from './VariantSelector';
 import { ViewSelector } from './ViewSelector';
 
@@ -21,8 +22,9 @@ createRoot(rootElement).render(
     initialFlowViewModel={import.meta.env.DEV ? devFixtures.flowViewModel : null}
     initialServiceViewModel={import.meta.env.DEV ? devFixtures.serviceViewModel : null}
   >
-    {({ viewMode, setViewMode, variants, variantId, setVariantId }) => (
+    {({ viewMode, setViewMode, variants, variantId, setVariantId, canSavePositions, currentPositions, markPositionsSaved, savedPositions }) => (
       <div className="eventflow-toolbar">
+        {viewMode === 'flow' && <SavedPositionsNote saved={savedPositions} />}
         {viewMode === 'flow' && (
           <VariantSelector
             variants={variants}
@@ -42,6 +44,16 @@ createRoot(rootElement).render(
             postToHost(viewModeChangedMessage(next));
           }}
         />
+        {canSavePositions && (
+          <SavePositionsButton
+            onSave={() => {
+              const positions = currentPositions();
+              if (!positions) return;
+              postToHost(savePositionsMessage(positions));
+              markPositionsSaved();
+            }}
+          />
+        )}
       </div>
     )}
   </EventFlowPage>
