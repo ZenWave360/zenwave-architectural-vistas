@@ -69,6 +69,8 @@ interface EventFlowNodeData {
   endOutcomeLabels?: string[];
   sourceRef?: SourceRef;
   title?: string;
+  startKind?: string | null;
+  actor?: string | null;
   synthetic?: boolean;
   policyLabelParts?: {
     when: string;
@@ -201,6 +203,8 @@ function toEditableReactFlowNodes(
         endOutcomeLabels,
         sourceRef: node.sourceRef,
         title: getNodeTitle(node.system, node.service),
+        startKind: node.type === FlowNodeType.START ? node.startKind : undefined,
+        actor: node.type === FlowNodeType.START ? node.actor : undefined,
         policyLabelParts: node.type === FlowNodeType.POLICY ? getPolicyLabelParts(label) : undefined,
       },
       style: {
