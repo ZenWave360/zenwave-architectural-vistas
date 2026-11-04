@@ -24,7 +24,8 @@ export enum FlowNodeType {
   COMMAND = "COMMAND",
   EVENT = "EVENT",
   POLICY = "POLICY",
-  END = "END"
+  END = "END",
+  READ_MODEL = "READ_MODEL"
 }
 
 /**
@@ -74,6 +75,9 @@ export interface FlowNode {
   type: FlowNodeType;
   label: string;
   endOutcome?: string[] | null;
+  /** START nodes only: who or what begins the flow. */
+  startKind?: 'actor' | 'timer' | 'system' | null;
+  actor?: string | null;
   system: string | null;
   service: string | null;
   sourceRef: SourceRef;
