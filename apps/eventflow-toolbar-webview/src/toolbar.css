@@ -50,3 +50,28 @@
   outline: 1px solid var(--vscode-focusBorder, #2563eb);
   outline-offset: 2px;
 }
+
+/* Sits to the left of the Flow / Systems selector. Hidden by not rendering it when the flow has no variants. */
+.variant-selector {
+  display: flex;
+  flex: 0 1 auto;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  color: var(--vscode-foreground, #1f2937);
+}
+
+.variant-selector select {
+  font: inherit;
+  max-width: 220px;
+  color: var(--vscode-dropdown-foreground, inherit);
+  background: var(--vscode-dropdown-background, #ffffff);
+  border: 1px solid var(--vscode-dropdown-border, #d4d4d8);
+  border-radius: 3px;
+  padding: 2px 4px;
+}
+
+.variant-selector select:focus-visible {
+  outline: 1px solid var(--vscode-focusBorder, #2563eb);
+  outline-offset: 2px;
+}

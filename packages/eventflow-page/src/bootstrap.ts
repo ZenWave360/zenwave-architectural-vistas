@@ -8,6 +8,12 @@ import { EVENTFLOW_WEBVIEW_PROTOCOL, EVENTFLOW_WEBVIEW_PROTOCOL_VERSION } from '
 
 export type ViewMode = 'flow' | 'services';
 
+/** One variant of a flow, as zenwave/eventFlowViews lists it. */
+export interface FlowVariant {
+  id: string;
+  title: string;
+}
+
 export interface RenderBundle {
   flowGraph?: FlowViewModel | null;
   serviceGraph?: ServiceViewModel | null;
@@ -17,8 +23,19 @@ export interface RenderBundle {
    * A host should send something stable for one diagram, such as the document URI and the flow name.
    * diagramId belongs to the diagrams in the same renderBundle; a bundle with a graph and no diagramId has no identity.
    * A bundle that changes only viewMode or display settings leaves the identity alone.
+   * A variant bundle keeps this id. The page frames the flow on it together with the shown variant.
    */
   diagramId?: string;
+  /**
+   * Variants of this flow. Omit to leave the current list. An empty list means the flow has none.
+   * The page shows them in this order and does not invent, reorder or rename any.
+   */
+  variants?: FlowVariant[];
+  /**
+   * The variant whose graph this bundle carries, or null for the full diagram. Omit to leave the current selection.
+   * The page does not swap graphs for this field: flowGraph is the graph to show, already laid out by the server.
+   */
+  variant?: string | null;
 }
 
 export interface BridgeMessage {
@@ -63,6 +80,60 @@ export function viewModeChangedMessage(viewMode: ViewMode) {
   return { type: 'viewModeChanged', payload: { viewMode } } as const;
 }
 
+/**
+ * Page to host, sent by a page with a variant dropdown when the user chooses a variant or the full diagram.
+ * variant null is the full diagram. Never sent for a host renderBundle.
+ */
+export function variantChangedMessage(variantId: string | null) {
+  return { type: 'variantChanged', payload: { variant: variantId } } as const;
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null;
+}
+
+function readVariants(value: unknown): FlowVariant[] {
+  if (!Array.isArray(value)) return [];
+  const variants: FlowVariant[] = [];
+  const seen = new Set<string>();
+  for (const entry of value) {
+    if (!isRecord(entry)) continue;
+    const id = entry.id;
+    if (typeof id !== 'string' || id.length === 0 || seen.has(id)) continue;
+    seen.add(id);
+    const title = entry.title;
+    variants.push({ id, title: typeof title === 'string' && title.length > 0 ? title : id });
+  }
+  return variants;
+}
+
+/** A non-empty string is a variant id. Anything else the host sent, including null, is the full diagram. */
+function readVariant(value: unknown): string | null {
+  return typeof value === 'string' && value.length > 0 ? value : null;
+}
+
+/**
+ * Normalizes a host renderBundle payload. A missing graph becomes null, as it does today.
+ * variants and variant are omitted from the result when the host did not send them.
+ */
+export function readRenderBundle(payload: unknown): RenderBundle {
+  const record = isRecord(payload) ? payload : {};
+  const bundle: RenderBundle = {
+    flowGraph: (record.flowGraph ?? null) as FlowViewModel | null,
+    serviceGraph: (record.serviceGraph ?? null) as ServiceViewModel | null,
+    viewMode: record.viewMode as ViewMode | undefined,
+    displaySettings: record.displaySettings as DiagramDisplaySettings | undefined,
+    diagramId: typeof record.diagramId === 'string' ? record.diagramId : undefined,
+  };
+  if (Object.prototype.hasOwnProperty.call(record, 'variants')) {
+    bundle.variants = readVariants(record.variants);
+  }
+  if (Object.prototype.hasOwnProperty.call(record, 'variant')) {
+    bundle.variant = readVariant(record.variant);
+  }
+  return bundle;
+}
+
 window.__eventFlowPendingMessages = window.__eventFlowPendingMessages ?? [];
 
 window.addEventListener('message', (event: MessageEvent) => {
@@ -76,13 +147,7 @@ window.addEventListener('message', (event: MessageEvent) => {
 
   if (msg.type === 'renderBundle') {
     if (typeof window.renderBundle === 'function') {
-      window.renderBundle({
-        flowGraph: (msg.payload?.flowGraph ?? null),
-        serviceGraph: (msg.payload?.serviceGraph ?? null),
-        viewMode: msg.payload?.viewMode,
-        displaySettings: msg.payload?.displaySettings,
-        diagramId: typeof msg.payload?.diagramId === 'string' ? msg.payload.diagramId : undefined,
-      });
+      window.renderBundle(readRenderBundle(msg.payload));
     } else {
       pending.push(msg);
     }
