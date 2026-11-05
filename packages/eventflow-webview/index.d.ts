@@ -40,6 +40,11 @@ export interface RenderBundleMessage {
     viewMode?: EventFlowViewMode;
     displaySettings?: EventFlowDisplaySettings;
     /**
+     * False when the server does not offer lanes: the toolbar page hides the Lanes control and shows no lanes.
+     * Always sent by current hosts; absent from older hosts, which the page treats as true.
+     */
+    lanesSupported?: boolean;
+    /**
      * A host should send something stable for one diagram, such as the document URI and the flow name.
      * diagramId belongs to the diagrams in the same renderBundle; a bundle with a graph and no diagramId has no identity.
      * A bundle that changes only viewMode or display settings leaves the identity alone.

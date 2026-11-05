@@ -18,6 +18,11 @@ export function readDisplaySettings(value: unknown): DiagramDisplaySettings {
   };
 }
 
+/** Only a boolean counts: anything else, including absence, leaves lanes offered (older hosts never send it). */
+export function readLanesSupported(value: unknown): boolean | undefined {
+  return typeof value === 'boolean' ? value : undefined;
+}
+
 /** One variant of a flow, as zenwave/eventFlowViews lists it. */
 export interface FlowVariant {
   id: string;
@@ -37,6 +42,8 @@ export interface RenderBundle {
   serviceGraph?: ServiceViewModel | null;
   viewMode?: ViewMode;
   displaySettings?: DiagramDisplaySettings;
+  /** False when the server does not offer lanes. Omitted when the host did not send a boolean; the page then treats it as true. */
+  lanesSupported?: boolean;
   /**
    * A host should send something stable for one diagram, such as the document URI and the flow name.
    * diagramId belongs to the diagrams in the same renderBundle; a bundle with a graph and no diagramId has no identity.
@@ -186,6 +193,10 @@ export function readRenderBundle(payload: unknown): RenderBundle {
   }
   if (Object.prototype.hasOwnProperty.call(record, 'variant')) {
     bundle.variant = readVariant(record.variant);
+  }
+  const lanesSupported = readLanesSupported(record.lanesSupported);
+  if (lanesSupported !== undefined) {
+    bundle.lanesSupported = lanesSupported;
   }
   const savedPositions = readSavedPositions(record.savedPositions);
   if (savedPositions) {

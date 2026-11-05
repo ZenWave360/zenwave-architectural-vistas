@@ -209,6 +209,24 @@ describe('EventFlow humanize toggle and policy drawing', { skip }, () => {
     } finally { await browser.closePage(page); }
   });
 
+  test('lanesSupported false hides the Lanes control and turns lanes off; true and absent show it', async () => {
+    const page = await openPage();
+    try {
+      const send = (extra) => page.evaluate(post({ type: 'renderBundle', payload: { flowGraph: laneGraph('systems'), viewMode: 'flow', diagramId, displaySettings: { lanes: 'systems' }, ...extra } }));
+      await send({});
+      await page.waitFor(`${laneSelect} !== null`);
+      assert.equal(await page.evaluate(`${laneSelect}.value`), 'systems', 'absent counts as true');
+      await send({ lanesSupported: false });
+      await page.waitFor(`document.querySelector('.lanes-control') === null`);
+      assert.equal(await page.evaluate(`document.querySelector('.eventflow-page__status')?.textContent ?? ''`).then((t) => t.includes('Lanes use automatic layout')), false);
+      await send({ lanesSupported: true });
+      await page.waitFor(`${laneSelect} !== null`);
+      assert.equal(await page.evaluate(`${laneSelect}.value`), 'systems');
+      assert.deepEqual(await page.evaluate(lanesMessages), []);
+      assert.deepEqual(page.exceptions, []);
+    } finally { await browser.closePage(page); }
+  });
+
   test('the toggle starts from the host, re-renders labels at once and posts labelsChanged only for the user', async () => {
     const page = await openPage();
     try {

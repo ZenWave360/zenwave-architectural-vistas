@@ -52,6 +52,8 @@ export interface EventFlowPageState {
   setLanes: (lanes: LanesMode) => void;
   /** Requested or still displayed lanes: saving/dragging remain off while awaiting the host. */
   lanesActive: boolean;
+  /** False when the host says the server offers no lanes: hide the Lanes control. Lanes then behave as none. */
+  lanesSupported: boolean;
 }
 
 interface VariantState {
@@ -175,6 +177,7 @@ export function EventFlowPage({ initialFlowViewModel = null, initialServiceViewM
   const [serviceViewModel, setServiceViewModel] = useState<ServiceViewModel | null>(initialServiceViewModel);
   const [viewMode, setViewMode] = useState<ViewMode>('flow');
   const [displaySettings, setDisplaySettings] = useState<DiagramDisplaySettings>({ humanizeLabels: true });
+  const [lanesSupported, setLanesSupported] = useState(true);
   const [highlightedNodeIds, setHighlightedNodeIds] = useState<string[]>([]);
   const [diagramId, setDiagramId] = useState<string | undefined>(undefined);
   const [variantState, setVariantState] = useState<VariantState>(NO_VARIANTS);
@@ -182,8 +185,8 @@ export function EventFlowPage({ initialFlowViewModel = null, initialServiceViewM
   const [savedPositions, setSavedPositions] = useState<SavedPositions | undefined>(undefined);
   const [savePositionsFailure, setSavePositionsFailure] = useState<string | undefined>(undefined);
   const movedFlowRef = useRef<FlowViewModel | null>(null);
-  const lanes = displaySettings.lanes ?? 'none';
-  const shownLanes: LanesMode = flowViewModel?.lanes == null ? 'none'
+  const lanes: LanesMode = lanesSupported ? displaySettings.lanes ?? 'none' : 'none';
+  const shownLanes: LanesMode = !lanesSupported || flowViewModel?.lanes == null ? 'none'
     : flowViewModel.lanes[0]?.kind === 'service' ? 'services' : 'systems';
   const lanesActive = lanes !== 'none' || shownLanes !== 'none';
 
@@ -243,6 +246,9 @@ export function EventFlowPage({ initialFlowViewModel = null, initialServiceViewM
       }
       if (bundle.viewMode) {
         setViewMode(bundle.viewMode);
+      }
+      if (bundle.lanesSupported !== undefined) {
+        setLanesSupported(bundle.lanesSupported);
       }
       if (bundle.displaySettings) {
         setDisplaySettings((current) => ({ ...current, ...readDisplaySettings(bundle.displaySettings) }));
@@ -346,6 +352,7 @@ export function EventFlowPage({ initialFlowViewModel = null, initialServiceViewM
         lanes,
         setLanes: (lanes) => setDisplaySettings((current) => ({ ...current, lanes })),
         lanesActive,
+        lanesSupported,
   };
   const status = statusBar?.(state);
 

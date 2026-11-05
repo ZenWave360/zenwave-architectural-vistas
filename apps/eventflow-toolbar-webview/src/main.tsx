@@ -27,7 +27,7 @@ createRoot(rootElement).render(
       ? <span className="status-message" role="status">Lanes use automatic layout; saved positions are not applied</span>
       : viewMode === 'flow' && (savedPositions?.exists || savePositionsFailure !== undefined) ? <SavedPositionsStatus saved={savedPositions} failure={savePositionsFailure} /> : null)}
   >
-    {({ viewMode, setViewMode, variants, variantId, setVariantId, canSavePositions, currentPositions, markPositionsSaved, humanizeLabels, setHumanizeLabels, lanes, setLanes, lanesActive }) => (
+    {({ viewMode, setViewMode, variants, variantId, setVariantId, canSavePositions, currentPositions, markPositionsSaved, humanizeLabels, setHumanizeLabels, lanes, setLanes, lanesActive, lanesSupported }) => (
       <div className="eventflow-toolbar">
         {viewMode === 'flow' && (
           <VariantSelector
@@ -47,7 +47,7 @@ createRoot(rootElement).render(
             postToHost(labelsChangedMessage(next));
           }}
         />
-        {viewMode === 'flow' && <LanesControl lanes={lanes} onUserChange={(next) => {
+        {viewMode === 'flow' && lanesSupported && <LanesControl lanes={lanes} onUserChange={(next) => {
           if (next === lanes) return;
           setLanes(next);
           postToHost(lanesChangedMessage(next));
