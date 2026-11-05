@@ -54,28 +54,160 @@ const bundle = (nodes, displaySettings) => ({
 const nodeText = (id) => `(document.querySelector('.react-flow__node[data-id=${JSON.stringify(id)}]') || {}).innerText || null`;
 const labelMessages = `window.__vscodeMessages.filter((message) => message.type === 'labelsChanged')`;
 const toggle = `document.querySelector('.eventflow-toolbar .humanize-toggle input')`;
+const laneSelect = `document.querySelector('.lanes-control select')`;
+const lanesMessages = `window.__vscodeMessages.filter((message) => message.type === 'lanesChanged')`;
+const statusText = `document.querySelector('.eventflow-page__status')?.textContent`;
+const automaticStatus = 'Lanes use automatic layout; saved positions are not applied';
+const changeLanes = (value) => `(() => { const select = ${laneSelect}; select.value = ${JSON.stringify(value)}; select.dispatchEvent(new Event('change', { bubbles: true })); })()`;
+const laneGraph = (mode) => ({
+  ...graph([flowNode('a', 'COMMAND', 220, { lane: 'one' }), flowNode('b', 'EVENT', 520, { lane: 'one' })]),
+  edges: [{ id: 'a-b', source: 'a', target: 'b', type: 'CAUSATION', label: null, outcome: null, sourceRef: null }],
+  systemGroups: [{ systemName: 'Store', bounds: { x: 0, y: 0, width: 900, height: 440 } }],
+  // Order is supplied by the server, not inferred from array order or labels.
+  lanes: [
+    { id: 'two', kind: mode === 'systems' ? 'system' : 'service', label: 'Unassigned', system: null, x: 0, y: 220, width: 900, height: 220, order: 1 },
+    { id: 'one', kind: mode === 'systems' ? 'system' : 'service', label: 'Store API', system: mode === 'systems' ? null : 'Store', x: 0, y: 0, width: 900, height: 220, order: 0 },
+  ],
+});
+
+async function dragFirstNode(page) {
+  await page.waitFor(`document.querySelector('.react-flow__node')?.style.visibility === 'visible'`);
+  // Let the opening frame finish before calculating screen coordinates.
+  await new Promise((resolve) => setTimeout(resolve, 200));
+  const before = await page.evaluate(`(() => {
+    const node = document.querySelector('.react-flow__node');
+    const box = node.getBoundingClientRect();
+    return { x: box.left + box.width / 2, y: box.top + box.height / 2, transform: node.style.transform };
+  })()`);
+  await page.send('Input.dispatchMouseEvent', { type: 'mousePressed', x: before.x, y: before.y, button: 'left', buttons: 1, clickCount: 1 });
+  for (let step = 1; step <= 4; step++) {
+    await page.send('Input.dispatchMouseEvent', { type: 'mouseMoved', x: before.x + step * 15, y: before.y + step * 5, button: 'left', buttons: 1 });
+  }
+  await page.send('Input.dispatchMouseEvent', { type: 'mouseReleased', x: before.x + 60, y: before.y + 20, button: 'left', buttons: 0, clickCount: 1 });
+  await page.evaluate(`new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))`);
+  return before.transform;
+}
 
 describe('EventFlow humanize toggle and policy drawing', { skip }, () => {
   let server;
+  let minimalServer;
   let browser;
 
   before(async () => {
     server = await startServer(path.join(packageDirectory, 'webview-toolbar'));
+    minimalServer = await startServer(path.join(packageDirectory, 'webview'));
     browser = await launchBrowser(executable);
   });
 
   after(async () => {
     await browser?.close();
     await server?.close();
+    await minimalServer?.close();
   });
 
-  async function openPage() {
+  async function openPage(host = server) {
     const page = await browser.newPage();
     await page.addInitScript(FAKE_VSCODE_API);
-    await page.goto(`${server.origin}/webview/index.html`);
+    await page.goto(`${host.origin}/webview/index.html`);
     await page.waitFor(`typeof window.renderBundle === 'function'`);
     return page;
   }
+
+  test('the minimal page draws server bands without controls or outbound choices', async () => {
+    const page = await openPage(minimalServer);
+    try {
+      await page.evaluate(post({ type: 'renderBundle', payload: { flowGraph: laneGraph('services'), viewMode: 'flow', displaySettings: { lanes: 'services' } } }));
+      await page.waitFor(`document.querySelectorAll('.eventflow-lane').length === 2`);
+      assert.equal(await page.evaluate(`document.querySelectorAll('.react-flow__node.nopan').length`), 0);
+      assert.equal(await page.evaluate(`document.querySelector('.lanes-control, .save-positions, .eventflow-page__status')`), null);
+      assert.deepEqual(await page.evaluate(lanesMessages), []);
+      assert.deepEqual(page.exceptions, []);
+    } finally { await browser.closePage(page); }
+  });
+
+  for (const mode of ['systems', 'services']) {
+    test(`host ${mode} bands draw below edges/nodes, disable saving/dragging and preserve variants`, async () => {
+      const page = await openPage();
+      try {
+        const payload = { flowGraph: laneGraph(mode), viewMode: 'flow', diagramId,
+          displaySettings: { lanes: mode }, variants: [{ id: 'v', title: 'From A to B' }], variant: null,
+          savedPositions: { exists: true, applied: true } };
+        await page.evaluate(post({ type: 'renderBundle', payload }));
+        await page.waitFor(`document.querySelectorAll('.eventflow-lane').length === 2`);
+        assert.equal(await page.evaluate(`${laneSelect}.value`), mode);
+        assert.deepEqual(await page.evaluate(lanesMessages), []);
+        assert.deepEqual(await page.evaluate(`Array.from(document.querySelectorAll('.eventflow-lane')).map(el => [el.dataset.laneId, el.textContent.trim(), el.style.top, el.style.width, el.style.height])`), [
+          ['one', 'Store API', '0px', '900px', '220px'], ['two', 'Unassigned', '220px', '900px', '220px'],
+        ]);
+        assert.equal(await page.evaluate(`document.querySelectorAll('.react-flow__node').length`), 2, 'bands are not interactive nodes or group boxes');
+        assert.equal(await page.evaluate(`Number(getComputedStyle(document.querySelector('.eventflow-lanes')).zIndex) < Number(getComputedStyle(document.querySelector('.react-flow__renderer')).zIndex)`), true);
+        assert.equal(await page.evaluate(`document.querySelector('.react-flow__renderer').contains(document.querySelector('.react-flow__edges'))`), true);
+        assert.equal(await page.evaluate(`getComputedStyle(document.querySelector('.eventflow-lanes')).pointerEvents`), 'none');
+        assert.equal(await page.evaluate(`document.querySelectorAll('.react-flow__node.nopan').length`), 0);
+        const beforeDrag = await dragFirstNode(page);
+        assert.equal(await page.evaluate(`document.querySelector('.react-flow__node').style.transform`), beforeDrag);
+        assert.equal(await page.evaluate(`document.querySelector('.save-positions').disabled`), true);
+        assert.match(await page.evaluate(`document.querySelector('.save-positions').title`), /Lanes use automatic layout/);
+        assert.equal(await page.evaluate(statusText), automaticStatus);
+        await page.evaluate(`document.querySelector('.save-positions').click()`);
+        assert.equal(await page.evaluate(`window.__vscodeMessages.filter(m => m.type === 'savePositions').length`), 0);
+        await page.evaluate(`window.savePositionsFailed('old failure')`);
+        await page.waitFor(`${statusText} === ${JSON.stringify(automaticStatus)}`);
+
+        await page.evaluate(`(() => { const el = document.querySelector('.variant-selector select'); el.value = 'v'; el.dispatchEvent(new Event('change', { bubbles: true })); })()`);
+        await page.waitFor(`window.__vscodeMessages.some(m => m.type === 'variantChanged')`);
+        assert.deepEqual(await page.evaluate(`window.__vscodeMessages.filter(m => m.type === 'variantChanged')`), [{ type: 'variantChanged', payload: { variant: 'v' } }]);
+        const variantGraph = laneGraph(mode);
+        variantGraph.lanes = [{ ...variantGraph.lanes[1], label: 'Variant Store', width: 720 }];
+        await page.evaluate(post({ type: 'renderBundle', payload: { ...payload, flowGraph: variantGraph, variant: 'v' } }));
+        await page.waitFor(`document.querySelectorAll('.eventflow-lane').length === 1`);
+        assert.equal(await page.evaluate(`document.querySelector('.eventflow-lane__label').textContent`), 'Variant Store');
+        assert.equal(await page.evaluate(`document.querySelector('.variant-selector select').value`), 'v');
+        assert.equal(await page.evaluate(statusText), automaticStatus);
+        assert.deepEqual(page.exceptions, []);
+      } finally { await browser.closePage(page); }
+    });
+  }
+
+  test('Lanes posts only user choices, waits for server bands, and restores null-lanes behavior', async () => {
+    const page = await openPage();
+    try {
+      const plain = { ...graph([flowNode('a', 'COMMAND', 220)]), lanes: null };
+      await page.evaluate(post({ type: 'renderBundle', payload: { flowGraph: plain, viewMode: 'flow', diagramId, savedPositions: { exists: true, applied: true } } }));
+      await page.waitFor(`document.querySelector('.react-flow__node') !== null`);
+      assert.equal(await page.evaluate(`${laneSelect}.value`), 'none');
+      assert.equal(await page.evaluate(`document.querySelectorAll('.react-flow__node.nopan').length`), 1);
+      assert.equal(await page.evaluate(`document.querySelector('.save-positions')`), null);
+      assert.equal(await page.evaluate(statusText), 'Saved layout');
+      await page.evaluate(changeLanes('systems'));
+      await page.waitFor(`document.querySelector('.save-positions')?.disabled === true`);
+      assert.deepEqual(await page.evaluate(lanesMessages), [{ type: 'lanesChanged', payload: { lanes: 'systems' } }]);
+      assert.equal(await page.evaluate(`document.querySelector('.eventflow-lanes')`), null, 'no client layout before server response');
+      assert.equal(await page.evaluate(`document.querySelectorAll('.react-flow__node.nopan').length`), 0);
+      await page.evaluate(post({ type: 'renderBundle', payload: { flowGraph: laneGraph('systems'), diagramId, displaySettings: { lanes: 'systems' } } }));
+      await page.waitFor(`document.querySelectorAll('.eventflow-lane').length === 2`);
+      await page.evaluate(changeLanes('services'));
+      await page.waitFor(`${laneSelect}.value === 'services'`);
+      await page.evaluate(post({ type: 'renderBundle', payload: { flowGraph: laneGraph('services'), diagramId, displaySettings: { lanes: 'services' } } }));
+      await page.evaluate(`window.setDisplaySettings({ lanes: 'invalid', humanizeLabels: false })`);
+      await page.waitFor(`${toggle}.checked === false`);
+      assert.equal(await page.evaluate(`${laneSelect}.value`), 'services', 'invalid host values are ignored');
+      await page.evaluate(changeLanes('none'));
+      await page.waitFor(`${laneSelect}.value === 'none'`);
+      assert.equal(await page.evaluate(`document.querySelector('.save-positions').disabled`), true, 'old bands remain automatic until response');
+      assert.equal(await page.evaluate(statusText), automaticStatus);
+      await page.evaluate(post({ type: 'renderBundle', payload: { flowGraph: plain, diagramId, displaySettings: { lanes: 'none' }, savedPositions: { exists: true, applied: true } } }));
+      await page.waitFor(`document.querySelector('.eventflow-lanes') === null`);
+      assert.equal(await page.evaluate(`document.querySelectorAll('.react-flow__node.nopan').length`), 1);
+      assert.equal(await page.evaluate(`document.querySelector('.save-positions')`), null);
+      assert.equal(await page.evaluate(statusText), 'Saved layout');
+      assert.deepEqual((await page.evaluate(lanesMessages)).map(m => m.payload.lanes), ['systems', 'services', 'none']);
+      const beforeDrag = await dragFirstNode(page);
+      assert.notEqual(await page.evaluate(`document.querySelector('.react-flow__node').style.transform`), beforeDrag);
+      await page.waitFor(`document.querySelector('.save-positions')?.disabled === false`);
+      assert.deepEqual(page.exceptions, []);
+    } finally { await browser.closePage(page); }
+  });
 
   test('the toggle starts from the host, re-renders labels at once and posts labelsChanged only for the user', async () => {
     const page = await openPage();

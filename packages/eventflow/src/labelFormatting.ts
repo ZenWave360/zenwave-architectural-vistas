@@ -1,5 +1,13 @@
+export type LanesMode = 'none' | 'systems' | 'services';
+
+export function isLanesMode(value: unknown): value is LanesMode {
+  return value === 'none' || value === 'systems' || value === 'services';
+}
+
 export interface DiagramDisplaySettings {
   humanizeLabels?: boolean;
+  /** Requested server layout. Bands in the graph describe the layout actually on screen. */
+  lanes?: LanesMode;
 }
 
 function splitIdentifierWords(value: string): string {

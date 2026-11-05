@@ -82,6 +82,8 @@ export interface FlowNode {
   title?: string | null;
   policyKind?: 'actor' | 'timer' | null;
   timer?: string | null;
+  /** Id of the server's lane band. Absent/null for older models or no lanes. */
+  lane?: string | null;
   system: string | null;
   service: string | null;
   sourceRef: SourceRef;
@@ -107,6 +109,20 @@ export interface FlowSystemGroupView {
   bounds: FlowBounds;
 }
 
+/** A full-width horizontal band, positioned and ordered by the server. */
+export interface FlowLane {
+  id: string;
+  kind: "system" | "service";
+  label: string;
+  /** The system of a service band; null otherwise. */
+  system: string | null;
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  order: number;
+}
+
 export interface LayoutMetadata {
   engine: string;
   direction: Direction;
@@ -129,6 +145,8 @@ export interface FlowViewModel {
   layout: LayoutMetadata | null;
   bounds: FlowBounds | null;
   systemGroups: FlowSystemGroupView[] | null;
+  /** Bands top to bottom; absent/null for older models or no lanes. */
+  lanes?: FlowLane[] | null;
 }
 
 /**
@@ -151,6 +169,7 @@ export function createFlowViewModel(
     layout: null,
     bounds: null,
     systemGroups: null,
+    lanes: null,
     ...partial
   };
 }

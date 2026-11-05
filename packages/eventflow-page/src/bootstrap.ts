@@ -3,10 +3,20 @@
  * and the visualizers. It is part of the entry chunk, so the page needs no inline script and works under a
  * content security policy that only allows scripts from the page's own location.
  */
-import type { DiagramDisplaySettings, FlowViewModel, ServiceViewModel } from '@zenwave360/vistas-eventflow/react';
+import type { LanesMode, DiagramDisplaySettings, FlowViewModel, ServiceViewModel } from '@zenwave360/vistas-eventflow/react';
 import { EVENTFLOW_WEBVIEW_PROTOCOL, EVENTFLOW_WEBVIEW_PROTOCOL_VERSION } from './protocol';
 
 export type ViewMode = 'flow' | 'services';
+export type { LanesMode };
+
+/** Ignore malformed settings rather than letting unrelated host traffic change the controls. */
+export function readDisplaySettings(value: unknown): DiagramDisplaySettings {
+  if (!isRecord(value)) return {};
+  return {
+    ...(typeof value.humanizeLabels === 'boolean' ? { humanizeLabels: value.humanizeLabels } : {}),
+    ...(value.lanes === 'none' || value.lanes === 'systems' || value.lanes === 'services' ? { lanes: value.lanes } : {}),
+  };
+}
 
 /** One variant of a flow, as zenwave/eventFlowViews lists it. */
 export interface FlowVariant {
@@ -109,6 +119,11 @@ export function labelsChangedMessage(humanize: boolean) {
   return { type: 'labelsChanged', payload: { humanize } } as const;
 }
 
+/** User choice only. The host returns the server's layout in renderBundle. Protocol v1 addition. */
+export function lanesChangedMessage(lanes: LanesMode) {
+  return { type: 'lanesChanged', payload: { lanes } } as const;
+}
+
 /** Node id to whole-number position, for every node of the full diagram as shown. */
 export type NodePositions = Record<string, { x: number; y: number }>;
 
@@ -163,7 +178,7 @@ export function readRenderBundle(payload: unknown): RenderBundle {
     flowGraph: (record.flowGraph ?? null) as FlowViewModel | null,
     serviceGraph: (record.serviceGraph ?? null) as ServiceViewModel | null,
     viewMode: record.viewMode as ViewMode | undefined,
-    displaySettings: record.displaySettings as DiagramDisplaySettings | undefined,
+    displaySettings: record.displaySettings === undefined ? undefined : readDisplaySettings(record.displaySettings),
     diagramId: typeof record.diagramId === 'string' ? record.diagramId : undefined,
   };
   if (Object.prototype.hasOwnProperty.call(record, 'variants')) {

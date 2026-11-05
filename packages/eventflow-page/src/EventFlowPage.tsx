@@ -8,12 +8,14 @@ import {
 } from '@zenwave360/vistas-eventflow/react';
 import {
   readRenderBundle,
+  readDisplaySettings,
   type BridgeMessage,
   type FlowVariant,
   type NodePositions,
   type RenderBundle,
   type SavedPositions,
   type ViewMode,
+  type LanesMode,
 } from './bootstrap';
 
 /** What an embedding application can read and change while the page is showing. */
@@ -45,6 +47,11 @@ export interface EventFlowPageState {
   humanizeLabels: boolean;
   /** Changes the labels on screen at once. It sends nothing to the host: the embedding application decides whether to tell it. */
   setHumanizeLabels: (humanizeLabels: boolean) => void;
+  /** Requested lanes, initialized by the host alongside humanizeLabels. */
+  lanes: LanesMode;
+  setLanes: (lanes: LanesMode) => void;
+  /** Requested or still displayed lanes: saving/dragging remain off while awaiting the host. */
+  lanesActive: boolean;
 }
 
 interface VariantState {
@@ -88,9 +95,9 @@ function applyHostVariants(current: VariantState, bundle: RenderBundle): Variant
  * The shown variant is a different laid-out graph, so the identity adds its id and the opening zoom runs again.
  * The full diagram uses diagramId alone. With no diagramId and no variant, the flow still has no identity.
  */
-function flowFramingDiagramId(diagramId: string | undefined, shownVariantId: string | null): string | undefined {
-  if (!shownVariantId) return diagramId;
-  return `${diagramId ?? ''}\u0000${shownVariantId}`;
+function flowFramingDiagramId(diagramId: string | undefined, shownVariantId: string | null, shownLanes: LanesMode): string | undefined {
+  const variantFrame = shownVariantId ? `${diagramId ?? ''}\u0000${shownVariantId}` : diagramId;
+  return shownLanes === 'none' ? variantFrame : `${variantFrame ?? ''}\u0000lanes:${shownLanes}`;
 }
 
 export interface EventFlowPageProps {
@@ -175,6 +182,10 @@ export function EventFlowPage({ initialFlowViewModel = null, initialServiceViewM
   const [savedPositions, setSavedPositions] = useState<SavedPositions | undefined>(undefined);
   const [savePositionsFailure, setSavePositionsFailure] = useState<string | undefined>(undefined);
   const movedFlowRef = useRef<FlowViewModel | null>(null);
+  const lanes = displaySettings.lanes ?? 'none';
+  const shownLanes: LanesMode = flowViewModel?.lanes == null ? 'none'
+    : flowViewModel.lanes[0]?.kind === 'service' ? 'services' : 'systems';
+  const lanesActive = lanes !== 'none' || shownLanes !== 'none';
 
   const onFlowViewModelChange = useCallback((moved: FlowViewModel) => {
     movedFlowRef.current = moved;
@@ -182,6 +193,7 @@ export function EventFlowPage({ initialFlowViewModel = null, initialServiceViewM
   }, []);
 
   const currentPositions = (): NodePositions | null => {
+    if (lanesActive || viewMode !== 'flow' || variantState.variantId !== null || variantState.shownVariantId !== null) return null;
     const moved = movedFlowRef.current;
     if (!moved) return null;
     const positions: NodePositions = {};
@@ -233,7 +245,7 @@ export function EventFlowPage({ initialFlowViewModel = null, initialServiceViewM
         setViewMode(bundle.viewMode);
       }
       if (bundle.displaySettings) {
-        setDisplaySettings((current) => ({ ...current, ...bundle.displaySettings }));
+        setDisplaySettings((current) => ({ ...current, ...readDisplaySettings(bundle.displaySettings) }));
       }
       // diagramId belongs to the graphs in this bundle. View and display settings alone leave it.
       if (typeof bundle.diagramId === 'string') {
@@ -260,7 +272,7 @@ export function EventFlowPage({ initialFlowViewModel = null, initialServiceViewM
     window.savePositionsFailed = savePositionsFailed;
     window.setViewMode = setViewMode;
     window.setDisplaySettings = (nextDisplaySettings) => {
-      setDisplaySettings((current) => ({ ...current, ...nextDisplaySettings }));
+      setDisplaySettings((current) => ({ ...current, ...readDisplaySettings(nextDisplaySettings) }));
     };
     window.highlightNode = highlightNode;
 
@@ -269,7 +281,7 @@ export function EventFlowPage({ initialFlowViewModel = null, initialServiceViewM
       message,
       renderBundle,
       setViewMode,
-      (nextDisplaySettings) => setDisplaySettings((current) => ({ ...current, ...nextDisplaySettings })),
+      (nextDisplaySettings) => setDisplaySettings((current) => ({ ...current, ...readDisplaySettings(nextDisplaySettings) })),
       highlightNode,
       savePositionsFailed
     ));
@@ -305,8 +317,8 @@ export function EventFlowPage({ initialFlowViewModel = null, initialServiceViewM
     diagram = (
       <EventFlowVisualizer
         flowViewModel={flowViewModel!}
-        diagramId={flowFramingDiagramId(diagramId, variantState.shownVariantId)}
-        editable={true}
+        diagramId={flowFramingDiagramId(diagramId, variantState.shownVariantId, shownLanes)}
+        editable={!lanesActive}
         displaySettings={displaySettings}
         highlightedNodeIds={highlightedNodeIds}
         onFlowViewModelChange={onFlowViewModelChange}
@@ -324,13 +336,16 @@ export function EventFlowPage({ initialFlowViewModel = null, initialServiceViewM
         variants: variantState.variants,
         variantId: variantState.variantId,
         setVariantId,
-        canSavePositions: viewMode === 'flow' && positionsMoved && variantState.variantId === null && variantState.shownVariantId === null,
+        canSavePositions: viewMode === 'flow' && !lanesActive && positionsMoved && variantState.variantId === null && variantState.shownVariantId === null,
         currentPositions,
         markPositionsSaved,
         savedPositions: variantState.shownVariantId === null ? savedPositions : undefined,
         savePositionsFailure,
         humanizeLabels: displaySettings.humanizeLabels ?? true,
         setHumanizeLabels: (humanizeLabels) => setDisplaySettings((current) => ({ ...current, humanizeLabels })),
+        lanes,
+        setLanes: (lanes) => setDisplaySettings((current) => ({ ...current, lanes })),
+        lanesActive,
   };
   const status = statusBar?.(state);
 

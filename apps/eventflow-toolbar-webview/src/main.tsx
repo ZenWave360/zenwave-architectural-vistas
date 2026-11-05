@@ -3,7 +3,8 @@ import '@zenwave360/vistas-eventflow-page/bootstrap';
 import '@zenwave360/vistas-eventflow-page/page.css';
 import './toolbar.css';
 import { createRoot } from 'react-dom/client';
-import { EventFlowPage, devFixtures, labelsChangedMessage, postToHost, savePositionsMessage, variantChangedMessage, viewModeChangedMessage } from '@zenwave360/vistas-eventflow-page';
+import { EventFlowPage, devFixtures, labelsChangedMessage, lanesChangedMessage, postToHost, savePositionsMessage, variantChangedMessage, viewModeChangedMessage } from '@zenwave360/vistas-eventflow-page';
+import { LanesControl } from './LanesControl';
 import { HumanizeToggle } from './HumanizeToggle';
 import { SavePositionsButton, SavedPositionsStatus } from './SavePositions';
 import { VariantSelector } from './VariantSelector';
@@ -22,9 +23,11 @@ createRoot(rootElement).render(
   <EventFlowPage
     initialFlowViewModel={import.meta.env.DEV ? devFixtures.flowViewModel : null}
     initialServiceViewModel={import.meta.env.DEV ? devFixtures.serviceViewModel : null}
-    statusBar={({ viewMode, savedPositions, savePositionsFailure }) => (viewMode === 'flow' && (savedPositions?.exists || savePositionsFailure !== undefined) ? <SavedPositionsStatus saved={savedPositions} failure={savePositionsFailure} /> : null)}
+    statusBar={({ viewMode, lanesActive, savedPositions, savePositionsFailure }) => (viewMode === 'flow' && lanesActive
+      ? <span className="status-message" role="status">Lanes use automatic layout; saved positions are not applied</span>
+      : viewMode === 'flow' && (savedPositions?.exists || savePositionsFailure !== undefined) ? <SavedPositionsStatus saved={savedPositions} failure={savePositionsFailure} /> : null)}
   >
-    {({ viewMode, setViewMode, variants, variantId, setVariantId, canSavePositions, currentPositions, markPositionsSaved, humanizeLabels, setHumanizeLabels }) => (
+    {({ viewMode, setViewMode, variants, variantId, setVariantId, canSavePositions, currentPositions, markPositionsSaved, humanizeLabels, setHumanizeLabels, lanes, setLanes, lanesActive }) => (
       <div className="eventflow-toolbar">
         {viewMode === 'flow' && (
           <VariantSelector
@@ -44,6 +47,11 @@ createRoot(rootElement).render(
             postToHost(labelsChangedMessage(next));
           }}
         />
+        {viewMode === 'flow' && <LanesControl lanes={lanes} onUserChange={(next) => {
+          if (next === lanes) return;
+          setLanes(next);
+          postToHost(lanesChangedMessage(next));
+        }} />}
         <ViewSelector
           viewMode={viewMode}
           onUserChange={(next) => {
@@ -52,8 +60,9 @@ createRoot(rootElement).render(
             postToHost(viewModeChangedMessage(next));
           }}
         />
-        {canSavePositions && (
+        {(canSavePositions || (viewMode === 'flow' && lanesActive)) && (
           <SavePositionsButton
+            disabled={lanesActive}
             onSave={() => {
               const positions = currentPositions();
               if (!positions) return;

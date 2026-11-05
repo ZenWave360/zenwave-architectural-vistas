@@ -52,7 +52,8 @@
 }
 
 /* Sits to the left of the Flow / Systems selector. Hidden by not rendering it when the flow has no variants. */
-.variant-selector {
+.variant-selector,
+.lanes-control {
   display: flex;
   flex: 0 1 auto;
   align-items: center;
@@ -61,7 +62,8 @@
   color: var(--vscode-foreground, #1f2937);
 }
 
-.variant-selector select {
+.variant-selector select,
+.lanes-control select {
   font: inherit;
   max-width: 220px;
   color: var(--vscode-dropdown-foreground, inherit);
@@ -71,7 +73,8 @@
   padding: 2px 4px;
 }
 
-.variant-selector select:focus-visible {
+.variant-selector select:focus-visible,
+.lanes-control select:focus-visible {
   outline: 1px solid var(--vscode-focusBorder, #2563eb);
   outline-offset: 2px;
 }
@@ -118,4 +121,9 @@
 
 .status-message--failed {
   color: var(--vscode-errorForeground, #b91c1c);
+}
+
+.save-positions:disabled {
+  cursor: default;
+  opacity: 0.55;
 }

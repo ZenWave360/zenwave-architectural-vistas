@@ -166,7 +166,7 @@ describe('EventFlow variant dropdown', { skip }, () => {
 
       await page.evaluate(post(bundle({})));
       await page.waitFor(hasNode('command:PlaceOrder'));
-      assert.equal(await page.evaluate(`document.querySelector('.variant-selector, select') === null`), true);
+      assert.equal(await page.evaluate(`document.querySelector('.variant-selector') === null`), true);
 
       await page.evaluate(post(bundle({ variants: [] })));
       assert.equal(await page.evaluate(`document.querySelector('.variant-selector') === null`), true);

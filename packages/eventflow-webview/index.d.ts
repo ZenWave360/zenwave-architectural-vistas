@@ -14,12 +14,15 @@ export declare const EVENTFLOW_WEBVIEW_OUTBOUND_MESSAGES: readonly ['webviewRead
 
 export declare const EVENTFLOW_WEBVIEW_TOOLBAR_DIRECTORY: 'webview-toolbar';
 export declare const EVENTFLOW_WEBVIEW_TOOLBAR_ENTRY: 'webview-toolbar/index.html';
-export declare const EVENTFLOW_WEBVIEW_TOOLBAR_OUTBOUND_MESSAGES: readonly ['webviewReady', 'viewModeChanged', 'variantChanged', 'savePositions', 'labelsChanged'];
+export declare const EVENTFLOW_WEBVIEW_TOOLBAR_OUTBOUND_MESSAGES: readonly ['webviewReady', 'viewModeChanged', 'variantChanged', 'savePositions', 'labelsChanged', 'lanesChanged'];
 
 export type EventFlowViewMode = 'flow' | 'services';
+export type LanesMode = 'none' | 'systems' | 'services';
 
 export interface EventFlowDisplaySettings {
   humanizeLabels?: boolean;
+  /** Requested server layout; omitted settings retain their value (initially none). */
+  lanes?: LanesMode;
 }
 
 /** One variant of a flow, as zenwave/eventFlowViews lists it. The page shows title and sends id back. */
@@ -138,7 +141,7 @@ export interface VariantChangedMessage {
  * Page to host, sent by the page in webview-toolbar/ when the user clicks Save positions. The button shows only in the
  * Flow view of the full diagram, after a node was moved since the last renderBundle with a graph. positions holds every
  * node of the full diagram as shown, by node id, rounded to whole numbers. The host writes all of them or none, and
- * discarding saved positions is the host's. Never sent for a variant, and the page in webview/ never sends it.
+ * discarding saved positions is the host's. Never sent for lanes or a variant, and the page in webview/ never sends it.
  */
 export interface SavePositionsMessage {
   type: 'savePositions';
@@ -153,4 +156,10 @@ export interface SavePositionsMessage {
 export interface LabelsChangedMessage {
   type: 'labelsChanged';
   payload: { humanize: boolean };
+}
+
+/** User choice only; the host keeps it per diagram and returns server-positioned bands in flowGraph. */
+export interface LanesChangedMessage {
+  type: 'lanesChanged';
+  payload: { lanes: LanesMode };
 }
