@@ -115,3 +115,7 @@
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+
+.status-message--failed {
+  color: var(--vscode-errorForeground, #b91c1c);
+}

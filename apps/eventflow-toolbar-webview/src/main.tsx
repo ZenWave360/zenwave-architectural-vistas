@@ -22,7 +22,7 @@ createRoot(rootElement).render(
   <EventFlowPage
     initialFlowViewModel={import.meta.env.DEV ? devFixtures.flowViewModel : null}
     initialServiceViewModel={import.meta.env.DEV ? devFixtures.serviceViewModel : null}
-    statusBar={({ viewMode, savedPositions }) => (viewMode === 'flow' && savedPositions?.exists ? <SavedPositionsStatus saved={savedPositions} /> : null)}
+    statusBar={({ viewMode, savedPositions, savePositionsFailure }) => (viewMode === 'flow' && (savedPositions?.exists || savePositionsFailure !== undefined) ? <SavedPositionsStatus saved={savedPositions} failure={savePositionsFailure} /> : null)}
   >
     {({ viewMode, setViewMode, variants, variantId, setVariantId, canSavePositions, currentPositions, markPositionsSaved, humanizeLabels, setHumanizeLabels }) => (
       <div className="eventflow-toolbar">

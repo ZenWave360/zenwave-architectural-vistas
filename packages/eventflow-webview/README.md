@@ -151,6 +151,7 @@ Hosts send messages with `window.postMessage` semantics: VS Code `webview.postMe
 | `setDisplaySettings` | `{ displaySettings: { humanizeLabels?: boolean } }` | Merged into the current settings; fields not sent keep their values. |
 | `highlightNode` | `{ nodeId: string \| null }` | Highlights the flow node with that id (for example a hierarchy node's `viewNodeIds` entry); `null` clears it. |
 | `renderGraph` | `{ graph }` | Legacy flow-only form. Use `renderBundle`. |
+| `savePositionsFailed` | `{ message: string }` | The host could not write the positions it got in `savePositions`. `webview-toolbar/` shows `Positions not saved: <message>` in its status bar and shows Save positions again, until the next click on it or the next `renderBundle`. `webview/` ignores it. Additive: `protocolVersion` stays 1. |
 
 Messages that arrive before the renderer has started are queued and applied when it starts. Messages with an unknown
 `type`, or without a string `type`, are ignored.

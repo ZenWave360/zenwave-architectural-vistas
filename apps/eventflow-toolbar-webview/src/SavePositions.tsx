@@ -10,8 +10,12 @@ export function SavePositionsButton({ onSave }: { onSave: () => void }) {
 /**
  * What the host did with the flow's saved positions, for the status bar. Nothing is shown when none exist or the host
  * did not say. A layout that did not match is noted with the count of nodes it lacked, when known; the full list is the tooltip.
+ * A failed save (EF-R22) replaces the note until the next save click or renderBundle.
  */
-export function SavedPositionsStatus({ saved }: { saved: SavedPositions | undefined }) {
+export function SavedPositionsStatus({ saved, failure }: { saved: SavedPositions | undefined; failure?: string }) {
+  if (failure !== undefined) {
+    return <span className="status-message status-message--failed" role="alert" title={failure}>Positions not saved: {failure}</span>;
+  }
   if (!saved?.exists) return null;
   if (saved.applied) {
     return <span className="status-message status-message--applied">Saved layout</span>;

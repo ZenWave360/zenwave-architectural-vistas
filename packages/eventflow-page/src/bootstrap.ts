@@ -52,6 +52,8 @@ export interface BridgeMessage {
   type: string;
   payload?: RenderBundle & {
     nodeId?: string | null;
+    /** savePositionsFailed: why the host could not write the positions. */
+    message?: string;
   };
 }
 
@@ -66,6 +68,7 @@ declare global {
     setViewMode?: (viewMode: ViewMode) => void;
     setDisplaySettings?: (displaySettings: DiagramDisplaySettings) => void;
     highlightNode?: (nodeId: string | null) => void;
+    savePositionsFailed?: (message: string) => void;
     /** Messaging channel a host may inject before the page scripts run. Preferred over any other channel. */
     __zenwaveHost?: HostChannel;
     /** VS Code webview API, acquired once by whoever calls acquireVsCodeApi first. */
@@ -214,6 +217,14 @@ window.addEventListener('message', (event: MessageEvent) => {
   if (msg.type === 'highlightNode') {
     if (typeof window.highlightNode === 'function') {
       window.highlightNode(msg.payload?.nodeId ?? null);
+    } else {
+      pending.push(msg);
+    }
+  }
+
+  if (msg.type === 'savePositionsFailed') {
+    if (typeof window.savePositionsFailed === 'function') {
+      window.savePositionsFailed(typeof msg.payload?.message === 'string' ? msg.payload.message : '');
     } else {
       pending.push(msg);
     }

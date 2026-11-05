@@ -17,6 +17,7 @@ export const EVENTFLOW_WEBVIEW_INBOUND_MESSAGES = Object.freeze([
   'setDisplaySettings',
   'highlightNode',
   'renderGraph',
+  'savePositionsFailed',
 ]);
 
 /** Message types the page sends to its host. */

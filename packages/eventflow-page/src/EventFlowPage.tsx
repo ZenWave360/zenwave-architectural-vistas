@@ -39,6 +39,8 @@ export interface EventFlowPageState {
   markPositionsSaved: () => void;
   /** What the host last said about the saved positions of this flow. Undefined until it says. */
   savedPositions: SavedPositions | undefined;
+  /** Why the host could not save the positions, from its savePositionsFailed message. Cleared by the next save click or renderBundle. */
+  savePositionsFailure: string | undefined;
   /** Whether labels are humanized. It starts from the host's displaySettings and follows them. */
   humanizeLabels: boolean;
   /** Changes the labels on screen at once. It sends nothing to the host: the embedding application decides whether to tell it. */
@@ -132,7 +134,8 @@ function applyBridgeMessage(
   renderBundle: (bundle: RenderBundle) => void,
   setViewMode: (viewMode: ViewMode) => void,
   setDisplaySettings: (displaySettings: DiagramDisplaySettings) => void,
-  highlightNode: (nodeId: string | null) => void
+  highlightNode: (nodeId: string | null) => void,
+  savePositionsFailed: (message: string) => void
 ) {
   if (message.type === 'renderBundle') {
     renderBundle(readRenderBundle(message.payload));
@@ -148,6 +151,10 @@ function applyBridgeMessage(
 
   if (message.type === 'highlightNode') {
     highlightNode(message.payload?.nodeId ?? null);
+  }
+
+  if (message.type === 'savePositionsFailed') {
+    savePositionsFailed(typeof message.payload?.message === 'string' ? message.payload.message : '');
   }
 }
 
@@ -166,6 +173,7 @@ export function EventFlowPage({ initialFlowViewModel = null, initialServiceViewM
   const [variantState, setVariantState] = useState<VariantState>(NO_VARIANTS);
   const [positionsMoved, setPositionsMoved] = useState(false);
   const [savedPositions, setSavedPositions] = useState<SavedPositions | undefined>(undefined);
+  const [savePositionsFailure, setSavePositionsFailure] = useState<string | undefined>(undefined);
   const movedFlowRef = useRef<FlowViewModel | null>(null);
 
   const onFlowViewModelChange = useCallback((moved: FlowViewModel) => {
@@ -184,9 +192,10 @@ export function EventFlowPage({ initialFlowViewModel = null, initialServiceViewM
     return positions;
   };
 
+  // The moved graph stays until something redraws the diagram, so the control can return when the host reports a failed save.
   const markPositionsSaved = () => {
-    movedFlowRef.current = null;
     setPositionsMoved(false);
+    setSavePositionsFailure(undefined);
   };
 
   // The visualizer redraws from the server graph whenever its inputs change and unmounts outside the flow view,
@@ -205,6 +214,7 @@ export function EventFlowPage({ initialFlowViewModel = null, initialServiceViewM
 
   useEffect(() => {
     const renderBundle = (bundle: RenderBundle) => {
+      setSavePositionsFailure(undefined);
       if (bundle.flowGraph !== undefined) {
         setFlowViewModel(bundle.flowGraph ?? null);
       }
@@ -240,7 +250,14 @@ export function EventFlowPage({ initialFlowViewModel = null, initialServiceViewM
       setHighlightedNodeIds(nodeId ? [nodeId] : []);
     };
 
+    // The save did not happen: the positions are still the ones on screen, so the user can save again.
+    const savePositionsFailed = (message: string) => {
+      setSavePositionsFailure(message || 'The positions were not saved.');
+      if (movedFlowRef.current) setPositionsMoved(true);
+    };
+
     window.renderBundle = renderBundle;
+    window.savePositionsFailed = savePositionsFailed;
     window.setViewMode = setViewMode;
     window.setDisplaySettings = (nextDisplaySettings) => {
       setDisplaySettings((current) => ({ ...current, ...nextDisplaySettings }));
@@ -253,7 +270,8 @@ export function EventFlowPage({ initialFlowViewModel = null, initialServiceViewM
       renderBundle,
       setViewMode,
       (nextDisplaySettings) => setDisplaySettings((current) => ({ ...current, ...nextDisplaySettings })),
-      highlightNode
+      highlightNode,
+      savePositionsFailed
     ));
     window.__eventFlowPendingMessages = [];
 
@@ -262,6 +280,7 @@ export function EventFlowPage({ initialFlowViewModel = null, initialServiceViewM
       delete window.setViewMode;
       delete window.setDisplaySettings;
       delete window.highlightNode;
+      delete window.savePositionsFailed;
     };
   }, []);
 
@@ -309,6 +328,7 @@ export function EventFlowPage({ initialFlowViewModel = null, initialServiceViewM
         currentPositions,
         markPositionsSaved,
         savedPositions: variantState.shownVariantId === null ? savedPositions : undefined,
+        savePositionsFailure,
         humanizeLabels: displaySettings.humanizeLabels ?? true,
         setHumanizeLabels: (humanizeLabels) => setDisplaySettings((current) => ({ ...current, humanizeLabels })),
   };

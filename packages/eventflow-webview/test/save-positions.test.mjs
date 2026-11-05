@@ -374,4 +374,40 @@ describe('EventFlow save positions', { skip }, () => {
       await browser.closePage(page);
     }
   });
+
+  test('toolbar page: a failed save is shown in the status bar, the control returns, and the next save or bundle clears it', async () => {
+    const page = await openPage(toolbarServer);
+    try {
+      await page.evaluate(post(bundle({})));
+      await page.waitFor(hasNode('command:PlaceOrder'));
+      await settled(page);
+      await dragNode(page, 'event:Start', 140, 30);
+      await page.waitFor(`${saveButton} !== null`);
+      await page.evaluate(`${saveButton}.click()`);
+      await page.waitFor(`${saveButton} === null`);
+      assert.equal(await page.evaluate(note), null);
+
+      await page.evaluate(post({ type: 'savePositionsFailed', payload: { message: 'EACCES: permission denied' } }));
+      await page.waitFor(`${note} !== null`);
+      assert.equal(await page.evaluate(note), 'Positions not saved: EACCES: permission denied');
+      await page.waitFor(`${saveButton} !== null`);
+
+      // Saving again posts the same positions and clears the failure.
+      await page.evaluate(`${saveButton}.click()`);
+      const sent = await page.evaluate(saveMessages);
+      assert.equal(sent.length, 2);
+      assert.deepEqual(sent[1].payload.positions, sent[0].payload.positions);
+      await page.waitFor(`${note} === null`);
+
+      // A renderBundle clears the failure too.
+      await page.evaluate(post({ type: 'savePositionsFailed', payload: { message: 'disk full' } }));
+      await page.waitFor(`${note} === 'Positions not saved: disk full'`);
+      await page.evaluate(post(bundle({})));
+      await page.waitFor(`${note} === null`);
+      assert.equal(await page.evaluate(`${saveButton} === null`), true);
+      assert.deepEqual(page.exceptions, []);
+    } finally {
+      await browser.closePage(page);
+    }
+  });
 });
