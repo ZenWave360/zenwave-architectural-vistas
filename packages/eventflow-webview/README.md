@@ -115,6 +115,18 @@ graph arrives, in a variant, and in Systems. `positions` has every node of the f
 id, rounded to whole numbers. The host writes all of them or none; discarding saved positions is the host's. The page
 in `webview/` has no button and never sends it. A host may ignore it, so `protocolVersion` stays 1.
 
+### Page to host: `labelsChanged`
+
+Sent only by the page in `webview-toolbar/`, when the user flips the **Humanize labels** toggle:
+
+```json
+{ "type": "labelsChanged", "payload": { "humanize": false } }
+```
+
+The toggle starts from `displaySettings.humanizeLabels` (true when the host never sent it). The page re-renders its
+labels at once and then sends this message. It is not sent when the host sets `displaySettings`. A host may ignore it, so
+`protocolVersion` stays 1.
+
 | Direction | `type` | `payload` | Sent by |
 | --- | --- | --- | --- |
 | page to host | `webviewReady` | `{ protocol, protocolVersion }` | both pages, once, when loaded |
@@ -122,6 +134,7 @@ in `webview/` has no button and never sends it. A host may ignore it, so `protoc
 | page to host | `variantChanged` | `{ variant: string \| null }` | `webview-toolbar/` only, for the user's own choice. `null` is the full diagram |
 
 | page to host | `savePositions` | `{ positions: { [nodeId]: { x, y } } }` | `webview-toolbar/` only, after the user clicks Save positions |
+| page to host | `labelsChanged` | `{ humanize: boolean }` | `webview-toolbar/` only, when the user flips Humanize labels |
 
 A host that receives no `webviewReady` is looking at a page that is still loading or failed to load.
 `payload` was added in protocol version 1; a page without it predates versioning.
@@ -138,6 +151,7 @@ Hosts send messages with `window.postMessage` semantics: VS Code `webview.postMe
 | `setDisplaySettings` | `{ displaySettings: { humanizeLabels?: boolean } }` | Merged into the current settings; fields not sent keep their values. |
 | `highlightNode` | `{ nodeId: string \| null }` | Highlights the flow node with that id (for example a hierarchy node's `viewNodeIds` entry); `null` clears it. |
 | `renderGraph` | `{ graph }` | Legacy flow-only form. Use `renderBundle`. |
+| `savePositionsFailed` | `{ message: string }` | The host could not write the positions it got in `savePositions`. `webview-toolbar/` shows `Positions not saved: <message>` in its status bar and shows Save positions again, until the next click on it or the next `renderBundle`. `webview/` ignores it. Additive: `protocolVersion` stays 1. |
 
 Messages that arrive before the renderer has started are queued and applied when it starts. Messages with an unknown
 `type`, or without a string `type`, are ignored.

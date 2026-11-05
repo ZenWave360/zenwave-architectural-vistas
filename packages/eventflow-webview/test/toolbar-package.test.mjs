@@ -39,6 +39,6 @@ test('the package ships and exports webview-toolbar/, and its API additions keep
   assert.equal(manifest.exports['./webview-toolbar/protocol.json'], './webview-toolbar/protocol.json');
   assert.equal(manifest.exports['./webview/*'], './webview/*');
   assert.deepEqual([...api.EVENTFLOW_WEBVIEW_OUTBOUND_MESSAGES], ['webviewReady']);
-  assert.deepEqual([...api.EVENTFLOW_WEBVIEW_TOOLBAR_OUTBOUND_MESSAGES], ['webviewReady', 'viewModeChanged', 'variantChanged', 'savePositions']);
+  assert.deepEqual([...api.EVENTFLOW_WEBVIEW_TOOLBAR_OUTBOUND_MESSAGES], ['webviewReady', 'viewModeChanged', 'variantChanged', 'savePositions', 'labelsChanged']);
   assert.ok(existsSync(path.join(directory, 'protocol.json')));
 });

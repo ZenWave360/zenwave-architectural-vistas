@@ -11,7 +11,7 @@ export interface StartNodeData {
   actor?: string | null;
 }
 
-function StartIcon({ kind }: { kind: StartKind }) {
+export function StartIcon({ kind }: { kind: StartKind }) {
   return (
     <svg
       className={`eventflow-start-icon eventflow-start-icon-${kind}`}

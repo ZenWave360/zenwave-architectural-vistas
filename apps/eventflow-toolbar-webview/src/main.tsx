@@ -3,8 +3,9 @@ import '@zenwave360/vistas-eventflow-page/bootstrap';
 import '@zenwave360/vistas-eventflow-page/page.css';
 import './toolbar.css';
 import { createRoot } from 'react-dom/client';
-import { EventFlowPage, devFixtures, postToHost, savePositionsMessage, variantChangedMessage, viewModeChangedMessage } from '@zenwave360/vistas-eventflow-page';
-import { SavePositionsButton, SavedPositionsNote } from './SavePositions';
+import { EventFlowPage, devFixtures, labelsChangedMessage, postToHost, savePositionsMessage, variantChangedMessage, viewModeChangedMessage } from '@zenwave360/vistas-eventflow-page';
+import { HumanizeToggle } from './HumanizeToggle';
+import { SavePositionsButton, SavedPositionsStatus } from './SavePositions';
 import { VariantSelector } from './VariantSelector';
 import { ViewSelector } from './ViewSelector';
 
@@ -21,10 +22,10 @@ createRoot(rootElement).render(
   <EventFlowPage
     initialFlowViewModel={import.meta.env.DEV ? devFixtures.flowViewModel : null}
     initialServiceViewModel={import.meta.env.DEV ? devFixtures.serviceViewModel : null}
+    statusBar={({ viewMode, savedPositions, savePositionsFailure }) => (viewMode === 'flow' && (savedPositions?.exists || savePositionsFailure !== undefined) ? <SavedPositionsStatus saved={savedPositions} failure={savePositionsFailure} /> : null)}
   >
-    {({ viewMode, setViewMode, variants, variantId, setVariantId, canSavePositions, currentPositions, markPositionsSaved, savedPositions }) => (
+    {({ viewMode, setViewMode, variants, variantId, setVariantId, canSavePositions, currentPositions, markPositionsSaved, humanizeLabels, setHumanizeLabels }) => (
       <div className="eventflow-toolbar">
-        {viewMode === 'flow' && <SavedPositionsNote saved={savedPositions} />}
         {viewMode === 'flow' && (
           <VariantSelector
             variants={variants}
@@ -36,6 +37,13 @@ createRoot(rootElement).render(
             }}
           />
         )}
+        <HumanizeToggle
+          humanize={humanizeLabels}
+          onUserChange={(next) => {
+            setHumanizeLabels(next);
+            postToHost(labelsChangedMessage(next));
+          }}
+        />
         <ViewSelector
           viewMode={viewMode}
           onUserChange={(next) => {

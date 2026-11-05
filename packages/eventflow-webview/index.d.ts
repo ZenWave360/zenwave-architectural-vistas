@@ -8,12 +8,13 @@ export declare const EVENTFLOW_WEBVIEW_INBOUND_MESSAGES: readonly [
   'setDisplaySettings',
   'highlightNode',
   'renderGraph',
+  'savePositionsFailed',
 ];
 export declare const EVENTFLOW_WEBVIEW_OUTBOUND_MESSAGES: readonly ['webviewReady'];
 
 export declare const EVENTFLOW_WEBVIEW_TOOLBAR_DIRECTORY: 'webview-toolbar';
 export declare const EVENTFLOW_WEBVIEW_TOOLBAR_ENTRY: 'webview-toolbar/index.html';
-export declare const EVENTFLOW_WEBVIEW_TOOLBAR_OUTBOUND_MESSAGES: readonly ['webviewReady', 'viewModeChanged', 'variantChanged', 'savePositions'];
+export declare const EVENTFLOW_WEBVIEW_TOOLBAR_OUTBOUND_MESSAGES: readonly ['webviewReady', 'viewModeChanged', 'variantChanged', 'savePositions', 'labelsChanged'];
 
 export type EventFlowViewMode = 'flow' | 'services';
 
@@ -86,7 +87,18 @@ export interface RenderGraphMessage {
   payload: { graph: unknown };
 }
 
+/**
+ * Host to page, after a savePositions the host could not write. The page in webview-toolbar/ shows message in its status
+ * bar and brings the Save positions control back, until the next click on it or the next renderBundle. The page in
+ * webview/ ignores it.
+ */
+export interface SavePositionsFailedMessage {
+  type: 'savePositionsFailed';
+  payload: { message: string };
+}
+
 export type EventFlowWebviewInboundMessage =
+  | SavePositionsFailedMessage
   | RenderBundleMessage
   | SetViewModeMessage
   | SetDisplaySettingsMessage
@@ -131,4 +143,14 @@ export interface VariantChangedMessage {
 export interface SavePositionsMessage {
   type: 'savePositions';
   payload: { positions: Record<string, { x: number; y: number }> };
+}
+
+/**
+ * Page to host, sent by the page in webview-toolbar/ when the user flips the Humanize labels toggle. The page has
+ * already re-rendered its labels. It is not sent when the host set displaySettings.humanizeLabels, and the page in
+ * webview/ never sends it. A host may ignore it, or keep the choice and send it back as displaySettings.
+ */
+export interface LabelsChangedMessage {
+  type: 'labelsChanged';
+  payload: { humanize: boolean };
 }
