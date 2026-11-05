@@ -135,6 +135,7 @@ labels at once and then sends this message. It is not sent when the host sets `d
 
 | page to host | `savePositions` | `{ positions: { [nodeId]: { x, y } } }` | `webview-toolbar/` only, after the user clicks Save positions |
 | page to host | `labelsChanged` | `{ humanize: boolean }` | `webview-toolbar/` only, when the user flips Humanize labels |
+| page to host | `lanesChanged` | `{ lanes: "none" \| "systems" \| "services" }` | `webview-toolbar/` only, when the user changes Lanes; the host returns the server layout |
 
 A host that receives no `webviewReady` is looking at a page that is still loading or failed to load.
 `payload` was added in protocol version 1; a page without it predates versioning.
@@ -146,7 +147,7 @@ Hosts send messages with `window.postMessage` semantics: VS Code `webview.postMe
 
 | `type` | `payload` | Effect |
 | --- | --- | --- |
-| `renderBundle` | `{ flowGraph?, serviceGraph?, viewMode?: "flow" \| "services", displaySettings?: { humanizeLabels?: boolean }, diagramId?: string, variants?: [{ id, title }], variant?: string \| null }` | Shows the given view models. Pass the server's `flowGraph` and `serviceGraph` unchanged. A missing or `null` graph shows a waiting state for that view. `displaySettings` is merged into the current settings. A host should send something stable for one diagram, such as the document URI and the flow name, as `diagramId`. `diagramId` belongs to the diagrams in the same `renderBundle`; a bundle with a graph and no `diagramId` has no identity. A bundle that changes only `viewMode` or display settings leaves the identity alone. `variants` and `variant` are optional; see below. |
+| `renderBundle` | `{ flowGraph?, serviceGraph?, viewMode?: "flow" \| "services", displaySettings?: { humanizeLabels?: boolean }, lanesSupported?: boolean, diagramId?: string, variants?: [{ id, title }], variant?: string \| null }` | Shows the given view models. Pass the server's `flowGraph` and `serviceGraph` unchanged. A missing or `null` graph shows a waiting state for that view. `displaySettings` is merged into the current settings. A host should send something stable for one diagram, such as the document URI and the flow name, as `diagramId`. `diagramId` belongs to the diagrams in the same `renderBundle`; a bundle with a graph and no `diagramId` has no identity. A bundle that changes only `viewMode` or display settings leaves the identity alone. `variants` and `variant` are optional; see below. |
 | `setViewMode` | `{ viewMode: "flow" \| "services" }` | Switches the view without resending the model. In `webview-toolbar/` the selector moves too, and the page sends no `viewModeChanged`. |
 | `setDisplaySettings` | `{ displaySettings: { humanizeLabels?: boolean } }` | Merged into the current settings; fields not sent keep their values. |
 | `highlightNode` | `{ nodeId: string \| null }` | Highlights the flow node with that id (for example a hierarchy node's `viewNodeIds` entry); `null` clears it. |
@@ -243,3 +244,46 @@ ignores what it does not know.
 
 A host should pin an exact package version in its lockfile, check `protocolVersion` at build time (or on
 `webviewReady`), and show an error instead of a blank panel when the version is not one it supports.
+
+### Lanes (protocol v1 addition)
+
+The toolbar page has a **Lanes** control: **No lanes**, **Systems**, **Services**.
+Initialize it alongside humanized labels in the host's render bundle:
+
+```json
+{ "type": "renderBundle", "payload": { "flowGraph": {}, "displaySettings": { "humanizeLabels": true, "lanes": "systems" } } }
+```
+
+`flowGraph` above stands for the actual server view model, passed through unchanged.
+`displaySettings.lanes` accepts `"none" | "systems" | "services"`, defaults to `"none"`,
+and can also arrive through `setDisplaySettings` or `window.setDisplaySettings`.
+Omitted fields retain their value; invalid lanes values are ignored. Host settings never send a message back.
+
+`renderBundle.payload.lanesSupported` (boolean) tells the page whether the server offers lanes. Current hosts always send it;
+older hosts omit it, and an omitted or non-boolean value counts as `false`: the page never offers lanes unless the host sends `true`. When it is not `true` the Lanes control is hidden
+(not just disabled), lanes are treated as `"none"` whatever `displaySettings.lanes` or the graph says, and no `lanesChanged` is sent.
+The last boolean received is kept until another arrives. A flow graph with `lanes: null` or `lanes: []` has no bands and counts as No lanes.
+For the user's own choice only, the toolbar page sends:
+
+```json
+{ "type": "lanesChanged", "payload": { "lanes": "services" } }
+```
+
+Validate `payload.lanes` against those three strings. The host keeps the choice per diagram,
+requests the server layout, and returns it in `renderBundle.flowGraph` with `displaySettings.lanes`.
+The page waits for that graph; it does no lane layout. `viewMode: "services"` still means the service map,
+and existing view messages keep their meaning. The minimal page renders bands but has no Lanes control or outbound message.
+
+A flow graph may contain `lanes: FlowLane[] | null` (omission is supported for older servers).
+Each band has `{ id, kind: "system" | "service", label, system: string | null, x, y, width, height, order }`;
+nodes may have `lane: string | null`. Rectangles are drawn as supplied, sorted by `order`,
+with labels at the left and alternating theme-aware fills below nodes and edges. Bands are neither draggable nor selectable.
+The flow renderer continues to ignore `systemGroups` for both lane kinds: system boxes would duplicate Systems bands,
+and could enclose unrelated service bands in Services mode.
+
+Variants keep their selector and use the bands in the variant's server graph. Canvas framing includes the displayed
+lane mode and variant, rather than a pending user choice. While lanes are requested or still displayed,
+node dragging and Save positions are disabled (tooltip: **Lanes use automatic layout**), and the toolbar page's status bar
+reads **Lanes use automatic layout; saved positions are not applied**, replacing saved-position and save-failure states.
+Switching to No lanes waits for the host's graph before restoring editing. With null/omitted bands and No lanes,
+existing dragging, saving, variant and status behavior stays the same. Lanes never write positions.

@@ -27,6 +27,7 @@ import { PolicyNode } from './components/PolicyNode';
 import { StartNode } from './components/StartNode';
 import { EndNode } from './components/EndNode';
 import { ReadModelNode } from './components/ReadModelNode';
+import { LaneBands } from './components/LaneBands';
 import { getNodeTypeKey } from './nodeTypeKey';
 import { OutcomeNode } from './components/OutcomeNode';
 import { CausationEdge } from './components/CausationEdge';
@@ -630,7 +631,10 @@ function EventFlowCanvas({
   );
   const openingNodes = useMemo(() => {
     const synthetic = buildSyntheticOutcomeRouting(flowViewModel, initialNodeState.nodes, displaySettings);
-    return toOpeningViewportNodes(initialNodeState.nodes, synthetic.nodes);
+    return [
+      ...toOpeningViewportNodes(initialNodeState.nodes, synthetic.nodes),
+      ...(flowViewModel.lanes ?? []).map((lane) => ({ ...lane, start: false })),
+    ];
   }, [displaySettings, flowViewModel, initialNodeState.nodes]);
   const [nodes, setNodes] = useState<EventFlowReactNode[]>(initialNodeState.nodes);
   const latestFlowViewModelRef = useRef(flowViewModel);
@@ -747,10 +751,11 @@ function EventFlowCanvas({
         onSelectionChange={handleSelectionChange}
         minZoom={FLOW_MIN_ZOOM}
         maxZoom={FLOW_MAX_ZOOM}
-        nodesDraggable={editable}
+        nodesDraggable={editable && !flowViewModel.lanes?.length}
         nodesConnectable={false}
         elementsSelectable
       >
+        {!!flowViewModel.lanes?.length && <LaneBands lanes={flowViewModel.lanes} />}
         <OpeningViewport nodes={openingNodes} />
         <Background gap={24} color={theme === 'dark' ? '#334155' : '#e2e8f0'} />
         <Controls />

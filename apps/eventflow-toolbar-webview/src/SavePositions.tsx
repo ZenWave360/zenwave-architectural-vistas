@@ -1,9 +1,9 @@
 import type { SavedPositions } from '@zenwave360/vistas-eventflow-page';
 
 /** The button appears once a node was moved in the full diagram. Its parent decides when that is. */
-export function SavePositionsButton({ onSave }: { onSave: () => void }) {
+export function SavePositionsButton({ onSave, disabled = false }: { onSave: () => void; disabled?: boolean }) {
   return (
-    <button type="button" className="save-positions" onClick={onSave}>Save positions</button>
+    <button type="button" className="save-positions" onClick={onSave} disabled={disabled} title={disabled ? 'Lanes use automatic layout' : undefined}>Save positions</button>
   );
 }
 

@@ -615,3 +615,40 @@
   flex-direction: column;
   gap: 4px;
 }
+
+/* Server-positioned bands are a background, never interactive React Flow nodes. */
+.eventflow-lanes {
+  position: absolute;
+  inset: 0;
+  transform-origin: 0 0;
+  pointer-events: none;
+  z-index: 0;
+}
+
+.eventflow-lane {
+  position: absolute;
+  box-sizing: border-box;
+  background: rgba(148, 163, 184, 0.08);
+  border-top: 1px solid rgba(148, 163, 184, 0.25);
+  color: var(--vscode-foreground, #475569);
+}
+
+.eventflow-lane--alternate {
+  background: rgba(148, 163, 184, 0.16);
+}
+
+.eventflow-lane__label {
+  display: block;
+  padding: 12px;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.theme-dark .eventflow-lane {
+  background: rgba(148, 163, 184, 0.10);
+  color: var(--vscode-foreground, #cbd5e1);
+}
+
+.theme-dark .eventflow-lane--alternate {
+  background: rgba(148, 163, 184, 0.18);
+}

@@ -1,6 +1,7 @@
 // The host bridge must be evaluated before React and the visualizers.
 export {
   labelsChangedMessage,
+  lanesChangedMessage,
   postToHost,
   savePositionsMessage,
   variantChangedMessage,
@@ -12,6 +13,7 @@ export {
   type RenderBundle,
   type SavedPositions,
   type ViewMode,
+  type LanesMode,
 } from './bootstrap';
 export { EventFlowPage, type EventFlowPageProps, type EventFlowPageState } from './EventFlowPage';
 export { devFixtures } from './fixtures';
