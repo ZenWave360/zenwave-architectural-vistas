@@ -52,7 +52,7 @@ export interface EventFlowPageState {
   setLanes: (lanes: LanesMode) => void;
   /** Requested or still displayed lanes: saving/dragging remain off while awaiting the host. */
   lanesActive: boolean;
-  /** False when the host says the server offers no lanes: hide the Lanes control. Lanes then behave as none. */
+  /** True only when the host said the server offers lanes: otherwise (false or never sent) the Lanes control is hidden and lanes behave as none. */
   lanesSupported: boolean;
 }
 
@@ -177,7 +177,7 @@ export function EventFlowPage({ initialFlowViewModel = null, initialServiceViewM
   const [serviceViewModel, setServiceViewModel] = useState<ServiceViewModel | null>(initialServiceViewModel);
   const [viewMode, setViewMode] = useState<ViewMode>('flow');
   const [displaySettings, setDisplaySettings] = useState<DiagramDisplaySettings>({ humanizeLabels: true });
-  const [lanesSupported, setLanesSupported] = useState(true);
+  const [lanesSupported, setLanesSupported] = useState(false);
   const [highlightedNodeIds, setHighlightedNodeIds] = useState<string[]>([]);
   const [diagramId, setDiagramId] = useState<string | undefined>(undefined);
   const [variantState, setVariantState] = useState<VariantState>(NO_VARIANTS);
@@ -186,8 +186,8 @@ export function EventFlowPage({ initialFlowViewModel = null, initialServiceViewM
   const [savePositionsFailure, setSavePositionsFailure] = useState<string | undefined>(undefined);
   const movedFlowRef = useRef<FlowViewModel | null>(null);
   const lanes: LanesMode = lanesSupported ? displaySettings.lanes ?? 'none' : 'none';
-  const shownLanes: LanesMode = !lanesSupported || flowViewModel?.lanes == null ? 'none'
-    : flowViewModel.lanes[0]?.kind === 'service' ? 'services' : 'systems';
+  const shownLanes: LanesMode = !lanesSupported || !flowViewModel?.lanes?.length ? 'none'
+    : flowViewModel.lanes![0]?.kind === 'service' ? 'services' : 'systems';
   const lanesActive = lanes !== 'none' || shownLanes !== 'none';
 
   const onFlowViewModelChange = useCallback((moved: FlowViewModel) => {

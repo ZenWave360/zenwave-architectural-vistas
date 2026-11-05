@@ -260,9 +260,9 @@ and can also arrive through `setDisplaySettings` or `window.setDisplaySettings`.
 Omitted fields retain their value; invalid lanes values are ignored. Host settings never send a message back.
 
 `renderBundle.payload.lanesSupported` (boolean) tells the page whether the server offers lanes. Current hosts always send it;
-older hosts omit it, and an omitted or non-boolean value counts as `true`. When it is `false` the Lanes control is hidden
+older hosts omit it, and an omitted or non-boolean value counts as `false`: the page never offers lanes unless the host sends `true`. When it is not `true` the Lanes control is hidden
 (not just disabled), lanes are treated as `"none"` whatever `displaySettings.lanes` or the graph says, and no `lanesChanged` is sent.
-The last boolean received is kept until another arrives.
+The last boolean received is kept until another arrives. A flow graph with `lanes: null` or `lanes: []` has no bands and counts as No lanes.
 For the user's own choice only, the toolbar page sends:
 
 ```json

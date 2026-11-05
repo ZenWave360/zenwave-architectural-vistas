@@ -129,7 +129,7 @@ describe('EventFlow humanize toggle and policy drawing', { skip }, () => {
     test(`host ${mode} bands draw below edges/nodes, disable saving/dragging and preserve variants`, async () => {
       const page = await openPage();
       try {
-        const payload = { flowGraph: laneGraph(mode), viewMode: 'flow', diagramId,
+        const payload = { lanesSupported: true, flowGraph: laneGraph(mode), viewMode: 'flow', diagramId,
           displaySettings: { lanes: mode }, variants: [{ id: 'v', title: 'From A to B' }], variant: null,
           savedPositions: { exists: true, applied: true } };
         await page.evaluate(post({ type: 'renderBundle', payload }));
@@ -173,7 +173,7 @@ describe('EventFlow humanize toggle and policy drawing', { skip }, () => {
     const page = await openPage();
     try {
       const plain = { ...graph([flowNode('a', 'COMMAND', 220)]), lanes: null };
-      await page.evaluate(post({ type: 'renderBundle', payload: { flowGraph: plain, viewMode: 'flow', diagramId, savedPositions: { exists: true, applied: true } } }));
+      await page.evaluate(post({ type: 'renderBundle', payload: { lanesSupported: true, flowGraph: plain, viewMode: 'flow', diagramId, savedPositions: { exists: true, applied: true } } }));
       await page.waitFor(`document.querySelector('.react-flow__node') !== null`);
       assert.equal(await page.evaluate(`${laneSelect}.value`), 'none');
       assert.equal(await page.evaluate(`document.querySelectorAll('.react-flow__node.nopan').length`), 1);
@@ -184,11 +184,11 @@ describe('EventFlow humanize toggle and policy drawing', { skip }, () => {
       assert.deepEqual(await page.evaluate(lanesMessages), [{ type: 'lanesChanged', payload: { lanes: 'systems' } }]);
       assert.equal(await page.evaluate(`document.querySelector('.eventflow-lanes')`), null, 'no client layout before server response');
       assert.equal(await page.evaluate(`document.querySelectorAll('.react-flow__node.nopan').length`), 0);
-      await page.evaluate(post({ type: 'renderBundle', payload: { flowGraph: laneGraph('systems'), diagramId, displaySettings: { lanes: 'systems' } } }));
+      await page.evaluate(post({ type: 'renderBundle', payload: { lanesSupported: true, flowGraph: laneGraph('systems'), diagramId, displaySettings: { lanes: 'systems' } } }));
       await page.waitFor(`document.querySelectorAll('.eventflow-lane').length === 2`);
       await page.evaluate(changeLanes('services'));
       await page.waitFor(`${laneSelect}.value === 'services'`);
-      await page.evaluate(post({ type: 'renderBundle', payload: { flowGraph: laneGraph('services'), diagramId, displaySettings: { lanes: 'services' } } }));
+      await page.evaluate(post({ type: 'renderBundle', payload: { lanesSupported: true, flowGraph: laneGraph('services'), diagramId, displaySettings: { lanes: 'services' } } }));
       await page.evaluate(`window.setDisplaySettings({ lanes: 'invalid', humanizeLabels: false })`);
       await page.waitFor(`${toggle}.checked === false`);
       assert.equal(await page.evaluate(`${laneSelect}.value`), 'services', 'invalid host values are ignored');
@@ -196,7 +196,7 @@ describe('EventFlow humanize toggle and policy drawing', { skip }, () => {
       await page.waitFor(`${laneSelect}.value === 'none'`);
       assert.equal(await page.evaluate(`document.querySelector('.save-positions').disabled`), true, 'old bands remain automatic until response');
       assert.equal(await page.evaluate(statusText), automaticStatus);
-      await page.evaluate(post({ type: 'renderBundle', payload: { flowGraph: plain, diagramId, displaySettings: { lanes: 'none' }, savedPositions: { exists: true, applied: true } } }));
+      await page.evaluate(post({ type: 'renderBundle', payload: { lanesSupported: true, flowGraph: plain, diagramId, displaySettings: { lanes: 'none' }, savedPositions: { exists: true, applied: true } } }));
       await page.waitFor(`document.querySelector('.eventflow-lanes') === null`);
       assert.equal(await page.evaluate(`document.querySelectorAll('.react-flow__node.nopan').length`), 1);
       assert.equal(await page.evaluate(`document.querySelector('.save-positions')`), null);
@@ -209,19 +209,24 @@ describe('EventFlow humanize toggle and policy drawing', { skip }, () => {
     } finally { await browser.closePage(page); }
   });
 
-  test('lanesSupported false hides the Lanes control and turns lanes off; true and absent show it', async () => {
+  test('lanesSupported false shows the Lanes control only for true; false and absent hide it', async () => {
     const page = await openPage();
     try {
       const send = (extra) => page.evaluate(post({ type: 'renderBundle', payload: { flowGraph: laneGraph('systems'), viewMode: 'flow', diagramId, displaySettings: { lanes: 'systems' }, ...extra } }));
       await send({});
+      await page.waitFor(`document.querySelector('.react-flow__node') !== null`);
+      assert.equal(await page.evaluate(`document.querySelector('.lanes-control')`), null, 'absent hides it');
+      await send({ lanesSupported: true });
       await page.waitFor(`${laneSelect} !== null`);
-      assert.equal(await page.evaluate(`${laneSelect}.value`), 'systems', 'absent counts as true');
       await send({ lanesSupported: false });
       await page.waitFor(`document.querySelector('.lanes-control') === null`);
       assert.equal(await page.evaluate(`document.querySelector('.eventflow-page__status')?.textContent ?? ''`).then((t) => t.includes('Lanes use automatic layout')), false);
       await send({ lanesSupported: true });
       await page.waitFor(`${laneSelect} !== null`);
       assert.equal(await page.evaluate(`${laneSelect}.value`), 'systems');
+      await page.evaluate(post({ type: 'renderBundle', payload: { lanesSupported: true, flowGraph: { ...graph([flowNode('a', 'COMMAND', 220)]), lanes: [] }, viewMode: 'flow', diagramId, displaySettings: { lanes: 'none' } } }));
+      await page.waitFor(`${laneSelect}?.value === 'none'`);
+      assert.equal(await page.evaluate(`document.querySelector('.save-positions, .eventflow-page__status')`), null, 'empty lanes count as no lanes');
       assert.deepEqual(await page.evaluate(lanesMessages), []);
       assert.deepEqual(page.exceptions, []);
     } finally { await browser.closePage(page); }

@@ -751,11 +751,11 @@ function EventFlowCanvas({
         onSelectionChange={handleSelectionChange}
         minZoom={FLOW_MIN_ZOOM}
         maxZoom={FLOW_MAX_ZOOM}
-        nodesDraggable={editable && flowViewModel.lanes == null}
+        nodesDraggable={editable && !flowViewModel.lanes?.length}
         nodesConnectable={false}
         elementsSelectable
       >
-        {flowViewModel.lanes != null && <LaneBands lanes={flowViewModel.lanes} />}
+        {!!flowViewModel.lanes?.length && <LaneBands lanes={flowViewModel.lanes} />}
         <OpeningViewport nodes={openingNodes} />
         <Background gap={24} color={theme === 'dark' ? '#334155' : '#e2e8f0'} />
         <Controls />

@@ -40,8 +40,8 @@ export interface RenderBundleMessage {
     viewMode?: EventFlowViewMode;
     displaySettings?: EventFlowDisplaySettings;
     /**
-     * False when the server does not offer lanes: the toolbar page hides the Lanes control and shows no lanes.
-     * Always sent by current hosts; absent from older hosts, which the page treats as true.
+     * True when the server offers lanes. The toolbar page shows the Lanes control only for true; false or absent (older hosts)
+     * hides it and treats lanes as none. Always sent by current hosts.
      */
     lanesSupported?: boolean;
     /**
