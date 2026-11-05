@@ -8,18 +8,18 @@ export function SavePositionsButton({ onSave }: { onSave: () => void }) {
 }
 
 /**
- * What the host did with the flow's saved positions. Nothing is shown when none exist or the host did not say.
- * A layout that did not match is noted with the count of nodes it lacked, when known.
+ * What the host did with the flow's saved positions, for the status bar. Nothing is shown when none exist or the host
+ * did not say. A layout that did not match is noted with the count of nodes it lacked, when known; the full list is the tooltip.
  */
-export function SavedPositionsNote({ saved }: { saved: SavedPositions | undefined }) {
+export function SavedPositionsStatus({ saved }: { saved: SavedPositions | undefined }) {
   if (!saved?.exists) return null;
   if (saved.applied) {
-    return <span className="saved-positions-note saved-positions-note--applied">Saved layout</span>;
+    return <span className="status-message status-message--applied">Saved layout</span>;
   }
-  const missing = saved.missing !== undefined && saved.missing.length > 0 ? ` (${saved.missing.length} missing)` : '';
+  const missing = saved.missing !== undefined && saved.missing.length > 0 ? saved.missing : undefined;
   return (
-    <span className="saved-positions-note" role="status">
-      Saved positions do not match this flow; automatic layout{missing}
+    <span className="status-message" role="status" title={missing?.join(', ')}>
+      Saved positions do not match this flow; automatic layout{missing ? ` (${missing.length} missing)` : ''}
     </span>
   );
 }

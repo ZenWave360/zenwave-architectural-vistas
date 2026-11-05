@@ -39,6 +39,10 @@ export interface EventFlowPageState {
   markPositionsSaved: () => void;
   /** What the host last said about the saved positions of this flow. Undefined until it says. */
   savedPositions: SavedPositions | undefined;
+  /** Whether labels are humanized. It starts from the host's displaySettings and follows them. */
+  humanizeLabels: boolean;
+  /** Changes the labels on screen at once. It sends nothing to the host: the embedding application decides whether to tell it. */
+  setHumanizeLabels: (humanizeLabels: boolean) => void;
 }
 
 interface VariantState {
@@ -96,6 +100,11 @@ export interface EventFlowPageProps {
    * renders the diagram alone.
    */
   children?: (state: EventFlowPageState) => ReactNode;
+  /**
+   * Optional status bar rendered below the diagram, for the page's messages. Nothing is drawn when it returns
+   * null, false or undefined.
+   */
+  statusBar?: (state: EventFlowPageState) => ReactNode;
 }
 
 function EmptyState({ message }: { message: string }) {
@@ -147,7 +156,7 @@ function applyBridgeMessage(
  * a waiting state for a view with no model. It has no control of its own; applications add theirs through children.
  * The host bridge (./bootstrap) must be imported before this module runs.
  */
-export function EventFlowPage({ initialFlowViewModel = null, initialServiceViewModel = null, children }: EventFlowPageProps) {
+export function EventFlowPage({ initialFlowViewModel = null, initialServiceViewModel = null, children, statusBar }: EventFlowPageProps) {
   const [flowViewModel, setFlowViewModel] = useState<FlowViewModel | null>(initialFlowViewModel);
   const [serviceViewModel, setServiceViewModel] = useState<ServiceViewModel | null>(initialServiceViewModel);
   const [viewMode, setViewMode] = useState<ViewMode>('flow');
@@ -290,9 +299,7 @@ export function EventFlowPage({ initialFlowViewModel = null, initialServiceViewM
     return diagram;
   }
 
-  return (
-    <div className="eventflow-page">
-      <div className="eventflow-page__toolbar">{children({
+  const state: EventFlowPageState = {
         viewMode,
         setViewMode,
         variants: variantState.variants,
@@ -302,8 +309,16 @@ export function EventFlowPage({ initialFlowViewModel = null, initialServiceViewM
         currentPositions,
         markPositionsSaved,
         savedPositions: variantState.shownVariantId === null ? savedPositions : undefined,
-      })}</div>
+        humanizeLabels: displaySettings.humanizeLabels ?? true,
+        setHumanizeLabels: (humanizeLabels) => setDisplaySettings((current) => ({ ...current, humanizeLabels })),
+  };
+  const status = statusBar?.(state);
+
+  return (
+    <div className="eventflow-page">
+      <div className="eventflow-page__toolbar">{children(state)}</div>
       <div className="eventflow-page__diagram">{diagram}</div>
+      {status ? <div className="eventflow-page__status">{status}</div> : null}
     </div>
   );
 }

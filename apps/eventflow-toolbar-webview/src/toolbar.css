@@ -92,13 +92,26 @@
   outline-offset: 2px;
 }
 
-/* Unobtrusive: small, muted, and it gives way to the controls when the bar is narrow. */
-.saved-positions-note {
-  flex: 0 1 auto;
+/* The Humanize labels toggle, at the end of the controls. */
+.humanize-toggle {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 4px;
+  cursor: pointer;
+  color: var(--vscode-foreground, #1f2937);
+}
+
+.humanize-toggle input:focus-visible {
+  outline: 1px solid var(--vscode-focusBorder, #2563eb);
+  outline-offset: 2px;
+}
+
+/* One line in the status bar: it truncates, and the tooltip carries the full text. */
+.status-message {
+  flex: 1 1 auto;
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  font-size: 11px;
-  color: var(--vscode-descriptionForeground, #6b7280);
 }

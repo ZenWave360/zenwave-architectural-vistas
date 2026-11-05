@@ -115,6 +115,18 @@ graph arrives, in a variant, and in Systems. `positions` has every node of the f
 id, rounded to whole numbers. The host writes all of them or none; discarding saved positions is the host's. The page
 in `webview/` has no button and never sends it. A host may ignore it, so `protocolVersion` stays 1.
 
+### Page to host: `labelsChanged`
+
+Sent only by the page in `webview-toolbar/`, when the user flips the **Humanize labels** toggle:
+
+```json
+{ "type": "labelsChanged", "payload": { "humanize": false } }
+```
+
+The toggle starts from `displaySettings.humanizeLabels` (true when the host never sent it). The page re-renders its
+labels at once and then sends this message. It is not sent when the host sets `displaySettings`. A host may ignore it, so
+`protocolVersion` stays 1.
+
 | Direction | `type` | `payload` | Sent by |
 | --- | --- | --- | --- |
 | page to host | `webviewReady` | `{ protocol, protocolVersion }` | both pages, once, when loaded |
@@ -122,6 +134,7 @@ in `webview/` has no button and never sends it. A host may ignore it, so `protoc
 | page to host | `variantChanged` | `{ variant: string \| null }` | `webview-toolbar/` only, for the user's own choice. `null` is the full diagram |
 
 | page to host | `savePositions` | `{ positions: { [nodeId]: { x, y } } }` | `webview-toolbar/` only, after the user clicks Save positions |
+| page to host | `labelsChanged` | `{ humanize: boolean }` | `webview-toolbar/` only, when the user flips Humanize labels |
 
 A host that receives no `webviewReady` is looking at a page that is still loading or failed to load.
 `payload` was added in protocol version 1; a page without it predates versioning.

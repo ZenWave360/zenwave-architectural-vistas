@@ -31,11 +31,12 @@ export const EVENTFLOW_WEBVIEW_TOOLBAR_ENTRY = 'webview-toolbar/index.html';
 /**
  * Message types the page with selectors sends to its host.
  * viewModeChanged and variantChanged are only sent for the user's own choice. savePositions only follows a click on
- * Save positions.
+ * Save positions. labelsChanged only follows the user flipping Humanize labels.
  */
 export const EVENTFLOW_WEBVIEW_TOOLBAR_OUTBOUND_MESSAGES = Object.freeze([
   'webviewReady',
   'viewModeChanged',
   'variantChanged',
   'savePositions',
+  'labelsChanged',
 ]);

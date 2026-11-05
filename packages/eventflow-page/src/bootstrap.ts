@@ -98,6 +98,14 @@ export function variantChangedMessage(variantId: string | null) {
   return { type: 'variantChanged', payload: { variant: variantId } } as const;
 }
 
+/**
+ * Page to host, sent by a page with a Humanize labels toggle when the user flips it. Never sent for a host
+ * setDisplaySettings or renderBundle.
+ */
+export function labelsChangedMessage(humanize: boolean) {
+  return { type: 'labelsChanged', payload: { humanize } } as const;
+}
+
 /** Node id to whole-number position, for every node of the full diagram as shown. */
 export type NodePositions = Record<string, { x: number; y: number }>;
 

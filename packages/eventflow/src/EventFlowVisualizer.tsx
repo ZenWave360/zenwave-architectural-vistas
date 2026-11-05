@@ -31,6 +31,7 @@ import { getNodeTypeKey } from './nodeTypeKey';
 import { OutcomeNode } from './components/OutcomeNode';
 import { CausationEdge } from './components/CausationEdge';
 import { DiagramDisplaySettings, humanizeLabel } from './labelFormatting';
+import { readPolicyDrawing } from './policyDrawing';
 import {
   computeInitialViewport,
   FLOW_MAX_ZOOM,
@@ -72,6 +73,9 @@ interface EventFlowNodeData {
   startKind?: string | null;
   actor?: string | null;
   synthetic?: boolean;
+  policyTitle?: string;
+  policyKind?: 'actor' | 'timer';
+  policyDetail?: string;
   policyLabelParts?: {
     when: string;
     condition: string;
@@ -205,6 +209,8 @@ function toEditableReactFlowNodes(
       ?.filter((outcomeLabel) => outcomeLabel != null && outcomeLabel.trim().length > 0)
       .map((outcomeLabel) => shouldHumanizeLabels ? humanizeLabel(outcomeLabel) : outcomeLabel);
 
+    const policyDrawing = node.type === FlowNodeType.POLICY ? readPolicyDrawing(node) : undefined;
+
     return [{
       id: node.id,
       type: getNodeType(node.type),
@@ -217,7 +223,10 @@ function toEditableReactFlowNodes(
         title: getNodeTitle(node.system, node.service),
         startKind: node.type === FlowNodeType.START ? node.startKind : undefined,
         actor: node.type === FlowNodeType.START ? node.actor : undefined,
-        policyLabelParts: node.type === FlowNodeType.POLICY ? getPolicyLabelParts(label) : undefined,
+        policyLabelParts: node.type === FlowNodeType.POLICY && !policyDrawing?.title ? getPolicyLabelParts(label) : undefined,
+        policyTitle: policyDrawing?.title,
+        policyKind: policyDrawing?.kind,
+        policyDetail: policyDrawing?.detail,
       },
       style: {
         width: renderedDimensions.width,

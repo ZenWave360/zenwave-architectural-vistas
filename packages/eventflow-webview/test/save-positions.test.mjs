@@ -62,7 +62,7 @@ const hasNode = (id) => `document.querySelector('.react-flow__node[data-id=${JSO
 const nodeTransform = (id) => `(document.querySelector('.react-flow__node[data-id=${JSON.stringify(id)}]') || {}).style.transform || ''`;
 const saveButton = `document.querySelector('.save-positions')`;
 const saveMessages = `window.__vscodeMessages.filter((message) => message.type === 'savePositions')`;
-const note = `(document.querySelector('.saved-positions-note') || {}).textContent || null`;
+const note = `(document.querySelector('.eventflow-page__status .status-message') || {}).textContent || null`;
 const frames = `new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => requestAnimationFrame(resolve))))`;
 
 // The opening zoom runs after the first bundle; a drag before it ends would miss the node.
@@ -218,7 +218,7 @@ describe('EventFlow save positions', { skip }, () => {
       await settled(page);
       const before = await dragNode(page, 'event:Start', 140, 30);
       assert.notEqual(await page.evaluate(nodeTransform('event:Start')), before, 'the node moved');
-      assert.equal(await page.evaluate(`${saveButton} === null && document.querySelector('.saved-positions-note') === null`), true);
+      assert.equal(await page.evaluate(`${saveButton} === null && document.querySelector('.eventflow-page__status .status-message') === null`), true);
       assert.equal(await page.evaluate(`document.body.innerText.includes('Saved positions')`), false);
       assert.deepEqual(await page.evaluate(saveMessages), []);
     } finally {
@@ -226,7 +226,7 @@ describe('EventFlow save positions', { skip }, () => {
     }
   });
 
-  test('toolbar page: a saved layout that did not match is noted, with the missing count', async () => {
+  test('toolbar page: a saved layout that did not match is noted in the status bar, not the toolbar, with the missing count', async () => {
     const page = await openPage(toolbarServer);
     try {
       await page.evaluate(post(bundle({})));
@@ -236,6 +236,9 @@ describe('EventFlow save positions', { skip }, () => {
       await page.evaluate(post(bundle({ savedPositions: { exists: true, applied: false, missing: ['a', 'b', 'c'] } })));
       await page.waitFor(`${note} !== null`);
       assert.equal(await page.evaluate(note), 'Saved positions do not match this flow; automatic layout (3 missing)');
+      assert.equal(await page.evaluate(`document.querySelector('.eventflow-toolbar .status-message') === null`), true);
+      assert.equal(await page.evaluate(`document.querySelector('.eventflow-page__status .status-message').title`), 'a, b, c');
+      assert.equal(await page.evaluate(`document.querySelector('.eventflow-page__status').getBoundingClientRect().bottom`), await page.evaluate(`window.innerHeight`));
 
       await page.evaluate(post(bundle({ savedPositions: { exists: true, applied: false } })));
       await page.waitFor(`${note} === 'Saved positions do not match this flow; automatic layout'`);

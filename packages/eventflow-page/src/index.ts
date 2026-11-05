@@ -1,5 +1,6 @@
 // The host bridge must be evaluated before React and the visualizers.
 export {
+  labelsChangedMessage,
   postToHost,
   savePositionsMessage,
   variantChangedMessage,

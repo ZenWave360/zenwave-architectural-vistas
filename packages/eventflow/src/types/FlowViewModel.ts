@@ -78,6 +78,10 @@ export interface FlowNode {
   /** START nodes only: who or what begins the flow. */
   startKind?: 'actor' | 'timer' | 'system' | null;
   actor?: string | null;
+  /** POLICY nodes only, all optional: a title drawn in place of the label, and who or what triggers the policy. */
+  title?: string | null;
+  policyKind?: 'actor' | 'timer' | null;
+  timer?: string | null;
   system: string | null;
   service: string | null;
   sourceRef: SourceRef;
