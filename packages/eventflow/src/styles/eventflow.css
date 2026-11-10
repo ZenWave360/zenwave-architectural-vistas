@@ -628,6 +628,31 @@
   z-index: 0;
 }
 
+.eventflow-lanes--handles {
+  z-index: 6;
+}
+
+.eventflow-lane__handle {
+  position: absolute;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 48px;
+  height: 64px;
+  margin: 12px 0 0 8px;
+  border-radius: 8px;
+  cursor: ns-resize;
+  pointer-events: auto;
+  touch-action: none;
+  color: var(--vscode-foreground, #475569);
+  opacity: 0.55;
+}
+
+.eventflow-lane__handle:hover {
+  opacity: 1;
+  background: rgba(148, 163, 184, 0.3);
+}
+
 .eventflow-lane {
   position: absolute;
   box-sizing: border-box;
@@ -642,7 +667,7 @@
 
 .eventflow-lane__label {
   display: block;
-  padding: 16px 24px;
+  padding: 16px 24px 16px 72px;
   font-size: 36px;
   font-weight: 700;
   line-height: 1.2;

@@ -584,6 +584,21 @@ function mergeEditableNodesIntoFlowViewModel(
   };
 }
 
+/** The lane each node is drawn in, found by the centre of its server position. */
+function laneOfNodes(flowViewModel: FlowViewModel): Map<string, string> {
+  const result = new Map<string, string>();
+  for (const node of flowViewModel.nodes) {
+    if (!node.position || !node.dimensions) continue;
+    const cx = node.position.x + node.dimensions.width / 2;
+    const cy = node.position.y + node.dimensions.height / 2;
+    const lane = (flowViewModel.lanes ?? []).find(
+      (l) => cx >= l.x && cx <= l.x + l.width && cy >= l.y && cy <= l.y + l.height
+    );
+    if (lane) result.set(node.id, lane.id);
+  }
+  return result;
+}
+
 function EventFlowCanvas({
   flowViewModel,
   theme = 'light',
@@ -627,6 +642,15 @@ function EventFlowCanvas({
   const [nodes, setNodes] = useState<EventFlowReactNode[]>(initialNodeState.nodes);
   const latestFlowViewModelRef = useRef(flowViewModel);
 
+  // Moving a lane moves the nodes inside it, and a node cannot be dragged out of its lane.
+  const [laneOffsets, setLaneOffsets] = useState<Record<string, number>>({});
+  const laneOfNode = useMemo(() => laneOfNodes(flowViewModel), [flowViewModel]);
+  const movedLanes = useMemo(
+    () => (flowViewModel.lanes ?? []).map((lane) => ({ ...lane, y: lane.y + (laneOffsets[lane.id] ?? 0) })),
+    [flowViewModel.lanes, laneOffsets]
+  );
+
+
   useEffect(() => {
     latestFlowViewModelRef.current = flowViewModel;
     setNodes(initialNodeState.nodes);
@@ -644,10 +668,16 @@ function EventFlowCanvas({
     [displaySettings, flowViewModel, nodes]
   );
 
-  const renderNodes = useMemo(
-    () => [...nodes, ...syntheticOutcomeRouting.nodes],
-    [nodes, syntheticOutcomeRouting.nodes]
-  );
+  const renderNodes = useMemo(() => {
+    const lanesById = new Map(movedLanes.map((lane) => [lane.id, lane]));
+    const confined = nodes.map((node) => {
+      const lane = lanesById.get(laneOfNode.get(node.id) ?? '');
+      return lane
+        ? { ...node, extent: [[lane.x, lane.y], [lane.x + lane.width, lane.y + lane.height]] as [[number, number], [number, number]] }
+        : node;
+    });
+    return [...confined, ...syntheticOutcomeRouting.nodes];
+  }, [laneOfNode, movedLanes, nodes, syntheticOutcomeRouting.nodes]);
 
   const edges = useMemo<Edge[]>(() => {
     const visibleNodeIds = new Set(renderNodes.map((node) => node.id));
@@ -702,13 +732,31 @@ function EventFlowCanvas({
     });
   }, []);
 
+  // With lanes the layout is always automatic and positions are never saved (EF-R24): the nodes move on the
+  // canvas only, to follow the arrows, and a new layout puts them back.
+  const hasLanes = !!flowViewModel.lanes?.length;
+
   const handleNodeDragStop = useCallback((
     _event: React.MouseEvent,
     _node: EventFlowReactNode,
     nextNodes: EventFlowReactNode[]
   ) => {
+    if (hasLanes) return;
     emitUpdatedFlowViewModel(nextNodes);
-  }, [emitUpdatedFlowViewModel]);
+  }, [emitUpdatedFlowViewModel, hasLanes]);
+
+  useEffect(() => {
+    setLaneOffsets({});
+  }, [flowViewModel]);
+
+  const handleMoveLane = useCallback((laneId: string, deltaY: number) => {
+    setLaneOffsets((current) => ({ ...current, [laneId]: (current[laneId] ?? 0) + deltaY }));
+    setNodes((currentNodes) => currentNodes.map((node) => (
+      laneOfNode.get(node.id) === laneId
+        ? { ...node, position: { x: node.position.x, y: node.position.y + deltaY } }
+        : node
+    )));
+  }, [laneOfNode]);
 
   const handleNodeClick = useCallback((_event: React.MouseEvent, node: EventFlowReactNode) => {
     if (onNodeClick && !node.data.synthetic && node.data.sourceRef) {
@@ -739,11 +787,11 @@ function EventFlowCanvas({
         onSelectionChange={handleSelectionChange}
         minZoom={FLOW_MIN_ZOOM}
         maxZoom={FLOW_MAX_ZOOM}
-        nodesDraggable={editable && !flowViewModel.lanes?.length}
+        nodesDraggable={editable}
         nodesConnectable={false}
         elementsSelectable
       >
-        {!!flowViewModel.lanes?.length && <LaneBands lanes={flowViewModel.lanes} />}
+        {hasLanes && <LaneBands lanes={movedLanes} onMoveLane={editable ? handleMoveLane : undefined} />}
         <OpeningViewport nodes={openingNodes} />
         <Background gap={24} color={theme === 'dark' ? '#334155' : '#e2e8f0'} />
         <Controls />
