@@ -8,5 +8,5 @@
       "@zenwave360/vistas-eventflow/react": ["../../packages/eventflow/src/index.ts"]
     }
   },
-  "include": ["src", "vite.config.ts"]
+  "include": ["src", "dev", "vite.config.ts"]
 }

@@ -2,12 +2,13 @@ import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 import { fileURLToPath } from 'node:url';
 import { webviewProtocol } from '@zenwave360/vistas-eventflow-page/vite';
+import { devViewsPlugin } from './dev/devViewsPlugin';
 
 const eventFlowSource = fileURLToPath(new URL('../../packages/eventflow/src/index.ts', import.meta.url));
 
 export default defineConfig({
   base: './',
-  plugins: [react(), webviewProtocol()],
+  plugins: [react(), webviewProtocol(), devViewsPlugin()],
   resolve: {
     alias: {
       '@zenwave360/vistas-eventflow/react': eventFlowSource,

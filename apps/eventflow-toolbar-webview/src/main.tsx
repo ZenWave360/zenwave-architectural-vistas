@@ -1,5 +1,6 @@
 // The bridge bootstrap must stay the first import: it registers the message listener before anything else runs.
 import '@zenwave360/vistas-eventflow-page/bootstrap';
+import './devHost';
 import '@zenwave360/vistas-eventflow-page/page.css';
 import './toolbar.css';
 import { createRoot } from 'react-dom/client';
