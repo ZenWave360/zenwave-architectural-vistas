@@ -12,7 +12,6 @@ import ReactFlow, {
   Controls,
   Edge,
   MarkerType,
-  MiniMap,
   Node,
   NodeChange,
   useReactFlow,
@@ -142,17 +141,6 @@ function getServerPosition(node: FlowNode, drawn: Point): Point {
 
 function getNodeType(nodeType: FlowNodeType): string {
   return getNodeTypeKey(nodeType);
-}
-
-function getNodeColor(nodeType?: string): string {
-  if (nodeType === 'startNode') return '#22c55e';
-  if (nodeType === 'commandNode') return '#3b82f6';
-  if (nodeType === 'eventNode') return '#f97316';
-  if (nodeType === 'policyNode') return '#a855f7';
-  if (nodeType === 'endNode') return '#ef4444';
-  if (nodeType === 'readModelNode') return '#86efac';
-  if (nodeType === 'outcomeNode') return '#e2e8f0';
-  return '#cbd5e1';
 }
 
 function getEdgeMarkerColor(edgeType: FlowEdgeType): string {
@@ -759,7 +747,6 @@ function EventFlowCanvas({
         <OpeningViewport nodes={openingNodes} />
         <Background gap={24} color={theme === 'dark' ? '#334155' : '#e2e8f0'} />
         <Controls />
-        <MiniMap nodeColor={(node) => getNodeColor(node.type)} />
       </ReactFlow>
     </div>
   );
