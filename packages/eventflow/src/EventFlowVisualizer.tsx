@@ -12,7 +12,6 @@ import ReactFlow, {
   Controls,
   Edge,
   MarkerType,
-  MiniMap,
   Node,
   NodeChange,
   useReactFlow,
@@ -45,6 +44,7 @@ import {
   FlowBounds,
   FlowEdgeType,
   FlowNode,
+  FlowLane,
   FlowNodeType,
   FlowViewModel,
   Point,
@@ -142,17 +142,6 @@ function getServerPosition(node: FlowNode, drawn: Point): Point {
 
 function getNodeType(nodeType: FlowNodeType): string {
   return getNodeTypeKey(nodeType);
-}
-
-function getNodeColor(nodeType?: string): string {
-  if (nodeType === 'startNode') return '#22c55e';
-  if (nodeType === 'commandNode') return '#3b82f6';
-  if (nodeType === 'eventNode') return '#f97316';
-  if (nodeType === 'policyNode') return '#a855f7';
-  if (nodeType === 'endNode') return '#ef4444';
-  if (nodeType === 'readModelNode') return '#86efac';
-  if (nodeType === 'outcomeNode') return '#e2e8f0';
-  return '#cbd5e1';
 }
 
 function getEdgeMarkerColor(edgeType: FlowEdgeType): string {
@@ -596,6 +585,28 @@ function mergeEditableNodesIntoFlowViewModel(
   };
 }
 
+/** The lane each node is drawn in, found by the centre of its server position. */
+function laneOfNodes(flowViewModel: FlowViewModel): Map<string, string> {
+  const result = new Map<string, string>();
+  for (const node of flowViewModel.nodes) {
+    if (!node.position || !node.dimensions) continue;
+    const cx = node.position.x + node.dimensions.width / 2;
+    const cy = node.position.y + node.dimensions.height / 2;
+    const lane = (flowViewModel.lanes ?? []).find(
+      (l) => cx >= l.x && cx <= l.x + l.width && cy >= l.y && cy <= l.y + l.height
+    );
+    if (lane) result.set(node.id, lane.id);
+  }
+  return result;
+}
+
+/** The empty space the server left under a lane, so a re-stacked set of lanes keeps its spacing. */
+function laneGapAfter(sortedLanes: readonly FlowLane[], laneId: string): number {
+  const index = sortedLanes.findIndex((lane) => lane.id === laneId);
+  const next = sortedLanes[index + 1];
+  return next ? Math.max(0, next.y - (sortedLanes[index].y + sortedLanes[index].height)) : 0;
+}
+
 function EventFlowCanvas({
   flowViewModel,
   theme = 'light',
@@ -639,6 +650,17 @@ function EventFlowCanvas({
   const [nodes, setNodes] = useState<EventFlowReactNode[]>(initialNodeState.nodes);
   const latestFlowViewModelRef = useRef(flowViewModel);
 
+  // Moving a lane moves the nodes inside it, and a node cannot be dragged out of its lane.
+  const [laneOffsets, setLaneOffsets] = useState<Record<string, number>>({});
+  const laneOffsetsRef = useRef(laneOffsets);
+  laneOffsetsRef.current = laneOffsets;
+  const laneOfNode = useMemo(() => laneOfNodes(flowViewModel), [flowViewModel]);
+  const movedLanes = useMemo(
+    () => (flowViewModel.lanes ?? []).map((lane) => ({ ...lane, y: lane.y + (laneOffsets[lane.id] ?? 0) })),
+    [flowViewModel.lanes, laneOffsets]
+  );
+
+
   useEffect(() => {
     latestFlowViewModelRef.current = flowViewModel;
     setNodes(initialNodeState.nodes);
@@ -656,10 +678,16 @@ function EventFlowCanvas({
     [displaySettings, flowViewModel, nodes]
   );
 
-  const renderNodes = useMemo(
-    () => [...nodes, ...syntheticOutcomeRouting.nodes],
-    [nodes, syntheticOutcomeRouting.nodes]
-  );
+  const renderNodes = useMemo(() => {
+    const lanesById = new Map(movedLanes.map((lane) => [lane.id, lane]));
+    const confined = nodes.map((node) => {
+      const lane = lanesById.get(laneOfNode.get(node.id) ?? '');
+      return lane
+        ? { ...node, extent: [[lane.x, lane.y], [lane.x + lane.width, lane.y + lane.height]] as [[number, number], [number, number]] }
+        : node;
+    });
+    return [...confined, ...syntheticOutcomeRouting.nodes];
+  }, [laneOfNode, movedLanes, nodes, syntheticOutcomeRouting.nodes]);
 
   const edges = useMemo<Edge[]>(() => {
     const visibleNodeIds = new Set(renderNodes.map((node) => node.id));
@@ -714,13 +742,55 @@ function EventFlowCanvas({
     });
   }, []);
 
+  // With lanes the layout is always automatic and positions are never saved (EF-R24): the nodes move on the
+  // canvas only, to follow the arrows, and a new layout puts them back.
+  const hasLanes = !!flowViewModel.lanes?.length;
+
   const handleNodeDragStop = useCallback((
     _event: React.MouseEvent,
     _node: EventFlowReactNode,
     nextNodes: EventFlowReactNode[]
   ) => {
+    if (hasLanes) return;
     emitUpdatedFlowViewModel(nextNodes);
-  }, [emitUpdatedFlowViewModel]);
+  }, [emitUpdatedFlowViewModel, hasLanes]);
+
+  useEffect(() => {
+    setLaneOffsets({});
+  }, [flowViewModel]);
+
+  const shiftLanes = useCallback((deltas: Record<string, number>) => {
+    setLaneOffsets((current) => {
+      const next = { ...current };
+      for (const [laneId, delta] of Object.entries(deltas)) next[laneId] = (next[laneId] ?? 0) + delta;
+      return next;
+    });
+    setNodes((currentNodes) => currentNodes.map((node) => {
+      const delta = deltas[laneOfNode.get(node.id) ?? ''];
+      return delta ? { ...node, position: { x: node.position.x, y: node.position.y + delta } } : node;
+    }));
+  }, [laneOfNode]);
+
+  const handleMoveLane = useCallback((laneId: string, deltaY: number) => {
+    shiftLanes({ [laneId]: deltaY });
+  }, [shiftLanes]);
+
+  // On release the lanes go back to a stack, in the order of where they were left, with their nodes.
+  const handleMoveLaneEnd = useCallback(() => {
+    const original = [...(flowViewModel.lanes ?? [])].sort((a, b) => a.y - b.y);
+    if (original.length < 2) return;
+    const current = original.map((lane) => ({ lane, y: lane.y + (laneOffsetsRef.current[lane.id] ?? 0) }));
+    const reordered = [...current].sort((a, b) => (a.y + a.lane.height / 2) - (b.y + b.lane.height / 2));
+    let nextY = original[0].y;
+    const deltas: Record<string, number> = {};
+    reordered.forEach(({ lane, y }, index) => {
+      const gap = index === 0 ? 0 : laneGapAfter(original, reordered[index - 1].lane.id);
+      if (index > 0) nextY += gap;
+      deltas[lane.id] = nextY - y;
+      nextY += lane.height;
+    });
+    shiftLanes(deltas);
+  }, [flowViewModel.lanes, shiftLanes]);
 
   const handleNodeClick = useCallback((_event: React.MouseEvent, node: EventFlowReactNode) => {
     if (onNodeClick && !node.data.synthetic && node.data.sourceRef) {
@@ -751,15 +821,14 @@ function EventFlowCanvas({
         onSelectionChange={handleSelectionChange}
         minZoom={FLOW_MIN_ZOOM}
         maxZoom={FLOW_MAX_ZOOM}
-        nodesDraggable={editable && !flowViewModel.lanes?.length}
+        nodesDraggable={editable}
         nodesConnectable={false}
         elementsSelectable
       >
-        {!!flowViewModel.lanes?.length && <LaneBands lanes={flowViewModel.lanes} />}
+        {hasLanes && <LaneBands lanes={movedLanes} onMoveLane={editable ? handleMoveLane : undefined} onMoveLaneEnd={handleMoveLaneEnd} />}
         <OpeningViewport nodes={openingNodes} />
         <Background gap={24} color={theme === 'dark' ? '#334155' : '#e2e8f0'} />
         <Controls />
-        <MiniMap nodeColor={(node) => getNodeColor(node.type)} />
       </ReactFlow>
     </div>
   );

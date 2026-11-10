@@ -16,8 +16,8 @@ export function StartIcon({ kind }: { kind: StartKind }) {
     <svg
       className={`eventflow-start-icon eventflow-start-icon-${kind}`}
       viewBox="0 0 24 24"
-      width="18"
-      height="18"
+      width="48"
+      height="48"
       fill="none"
       stroke="currentColor"
       strokeWidth="2"
@@ -62,13 +62,13 @@ export function StartNode({ data }: NodeProps<StartNodeData>) {
       <div className="eventflow-start-node">
         {iconKind || actor ? (
           <div className="eventflow-start-content">
-            {actor ? <div className="eventflow-start-actor">{actor}</div> : null}
             <div className="eventflow-start-line">
               {iconKind ? <StartIcon kind={iconKind} /> : null}
               <div className="node-header">
                 <strong>{data.label}</strong>
               </div>
             </div>
+            {actor ? <div className="eventflow-start-actor">{actor}</div> : null}
           </div>
         ) : (
           <div className="node-header">

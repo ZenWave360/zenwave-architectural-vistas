@@ -168,7 +168,7 @@ if (import.meta.env.DEV) {
     if (!panel) {
       panel = document.createElement('div');
       panel.style.cssText =
-        'position:fixed;top:8px;right:8px;z-index:99999;font:12px system-ui,sans-serif;background:rgba(30,30,30,.92);color:#eee;border-radius:6px;padding:6px 8px;max-width:340px;box-shadow:0 2px 8px rgba(0,0,0,.4)';
+        'position:fixed;bottom:36px;right:8px;z-index:99999;font:12px system-ui,sans-serif;background:rgba(30,30,30,.92);color:#eee;border-radius:6px;padding:6px 8px;max-width:340px;box-shadow:0 2px 8px rgba(0,0,0,.4)';
       document.body.appendChild(panel);
     }
     const files = state.entries.filter((e) => e.kind === 'eventflow');
