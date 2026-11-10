@@ -302,6 +302,8 @@ export function EventFlowPage({ initialFlowViewModel = null, initialServiceViewM
     };
   }, []);
 
+  // With lanes the canvas is still editable, but nothing is saved: EventFlowVisualizer drops the move and lanesActive
+  // keeps canSavePositions off (EF-R24).
   // A node move is remembered here and reaches the host only when an application with a Save positions control
   // sends it. The minimal page has no such control. A move in a variant is remembered too, but canSavePositions
   // is false there (EF-R12), and the host's next renderBundle replaces the graph.
@@ -324,7 +326,7 @@ export function EventFlowPage({ initialFlowViewModel = null, initialServiceViewM
       <EventFlowVisualizer
         flowViewModel={flowViewModel!}
         diagramId={flowFramingDiagramId(diagramId, variantState.shownVariantId, shownLanes)}
-        editable={!lanesActive}
+        editable={true}
         displaySettings={displaySettings}
         highlightedNodeIds={highlightedNodeIds}
         onFlowViewModelChange={onFlowViewModelChange}
