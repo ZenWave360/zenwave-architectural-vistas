@@ -88,6 +88,14 @@ async function dragFirstNode(page) {
   return before.transform;
 }
 
+const savePositionsMessages = `window.__vscodeMessages.filter((message) => message.type === 'savePositions')`;
+const firstNodeInsideItsLane = `(() => {
+  const node = document.querySelector('.react-flow__node').getBoundingClientRect();
+  const lane = document.querySelector('.eventflow-lane[data-lane-id="one"]').getBoundingClientRect();
+  const slack = 1;
+  return node.left >= lane.left - slack && node.right <= lane.right + slack && node.top >= lane.top - slack && node.bottom <= lane.bottom + slack;
+})()`;
+
 describe('EventFlow humanize toggle and policy drawing', { skip }, () => {
   let server;
   let minimalServer;
@@ -118,9 +126,14 @@ describe('EventFlow humanize toggle and policy drawing', { skip }, () => {
     try {
       await page.evaluate(post({ type: 'renderBundle', payload: { flowGraph: laneGraph('services'), viewMode: 'flow', displaySettings: { lanes: 'services' } } }));
       await page.waitFor(`document.querySelectorAll('.eventflow-lane').length === 2`);
-      assert.equal(await page.evaluate(`document.querySelectorAll('.react-flow__node.nopan').length`), 0);
+      // EF-R24: the canvas is editable with lanes, on screen only.
+      assert.equal(await page.evaluate(`document.querySelectorAll('.react-flow__node.nopan').length`), 2);
       assert.equal(await page.evaluate(`document.querySelector('.lanes-control, .save-positions, .eventflow-page__status')`), null);
       assert.deepEqual(await page.evaluate(lanesMessages), []);
+      const beforeDrag = await dragFirstNode(page);
+      assert.notEqual(await page.evaluate(`document.querySelector('.react-flow__node').style.transform`), beforeDrag);
+      assert.equal(await page.evaluate(firstNodeInsideItsLane), true, 'the node stays inside its lane');
+      assert.deepEqual(await page.evaluate(`window.__vscodeMessages.map((message) => message.type)`), ['webviewReady'], 'dragging posts no choice and saves nothing');
       assert.deepEqual(page.exceptions, []);
     } finally { await browser.closePage(page); }
   });
@@ -143,9 +156,13 @@ describe('EventFlow humanize toggle and policy drawing', { skip }, () => {
         assert.equal(await page.evaluate(`Number(getComputedStyle(document.querySelector('.eventflow-lanes')).zIndex) < Number(getComputedStyle(document.querySelector('.react-flow__renderer')).zIndex)`), true);
         assert.equal(await page.evaluate(`document.querySelector('.react-flow__renderer').contains(document.querySelector('.react-flow__edges'))`), true);
         assert.equal(await page.evaluate(`getComputedStyle(document.querySelector('.eventflow-lanes')).pointerEvents`), 'none');
-        assert.equal(await page.evaluate(`document.querySelectorAll('.react-flow__node.nopan').length`), 0);
+        // EF-R24: nodes can be dragged inside their own lane, on screen only.
+        assert.equal(await page.evaluate(`document.querySelectorAll('.react-flow__node.nopan').length`), 2);
+        assert.equal(await page.evaluate(`document.querySelectorAll('[data-lane-handle]').length`), 2, 'each lane has a handle on its title');
         const beforeDrag = await dragFirstNode(page);
-        assert.equal(await page.evaluate(`document.querySelector('.react-flow__node').style.transform`), beforeDrag);
+        assert.notEqual(await page.evaluate(`document.querySelector('.react-flow__node').style.transform`), beforeDrag);
+        assert.equal(await page.evaluate(firstNodeInsideItsLane), true, 'the node stays inside its lane');
+        assert.deepEqual(await page.evaluate(savePositionsMessages), [], 'dragging with lanes saves nothing');
         assert.equal(await page.evaluate(`document.querySelector('.save-positions').disabled`), true);
         assert.match(await page.evaluate(`document.querySelector('.save-positions').title`), /Lanes use automatic layout/);
         assert.equal(await page.evaluate(statusText), automaticStatus);
@@ -183,7 +200,6 @@ describe('EventFlow humanize toggle and policy drawing', { skip }, () => {
       await page.waitFor(`document.querySelector('.save-positions')?.disabled === true`);
       assert.deepEqual(await page.evaluate(lanesMessages), [{ type: 'lanesChanged', payload: { lanes: 'systems' } }]);
       assert.equal(await page.evaluate(`document.querySelector('.eventflow-lanes')`), null, 'no client layout before server response');
-      assert.equal(await page.evaluate(`document.querySelectorAll('.react-flow__node.nopan').length`), 0);
       await page.evaluate(post({ type: 'renderBundle', payload: { lanesSupported: true, flowGraph: laneGraph('systems'), diagramId, displaySettings: { lanes: 'systems' } } }));
       await page.waitFor(`document.querySelectorAll('.eventflow-lane').length === 2`);
       await page.evaluate(changeLanes('services'));
