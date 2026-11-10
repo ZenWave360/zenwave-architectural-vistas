@@ -16,8 +16,8 @@ export function StartIcon({ kind }: { kind: StartKind }) {
     <svg
       className={`eventflow-start-icon eventflow-start-icon-${kind}`}
       viewBox="0 0 24 24"
-      width="40"
-      height="40"
+      width="48"
+      height="48"
       fill="none"
       stroke="currentColor"
       strokeWidth="2"

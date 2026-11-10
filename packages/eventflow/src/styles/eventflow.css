@@ -80,6 +80,14 @@
   overflow: visible;
 }
 
+/* the shell is the node's rectangle: only the circle inside carries a shadow and the hover lift */
+.eventflow-start-node-shell,
+.eventflow-start-node-shell:hover {
+  box-shadow: none;
+  transform: none;
+  background: transparent;
+}
+
 .eventflow-start-node {
   display: flex;
   align-items: center;
@@ -590,8 +598,8 @@
 
 .eventflow-start-icon {
   flex: none;
-  width: 40px;
-  height: 40px;
+  width: 48px;
+  height: 48px;
   stroke-width: 1.75;
 }
 
