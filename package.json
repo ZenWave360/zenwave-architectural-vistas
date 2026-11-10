@@ -8,6 +8,7 @@
     "node": ">=20"
   },
   "scripts": {
+    "dev:views": "pnpm --filter @zenwave360/vistas-eventflow-toolbar-webview-app dev",
     "build": "pnpm -r --if-present build",
     "build:eventflow-webview": "pnpm --filter @zenwave360/vistas-eventflow-webview-app build",
     "check": "pnpm -r --if-present check",
