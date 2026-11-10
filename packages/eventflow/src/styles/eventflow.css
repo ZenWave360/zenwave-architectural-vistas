@@ -647,7 +647,7 @@
   justify-content: center;
   width: 48px;
   height: 64px;
-  margin: 12px 0 0 8px;
+  margin: 0 0 0 8px;
   border-radius: 8px;
   cursor: ns-resize;
   pointer-events: auto;
@@ -674,6 +674,9 @@
 }
 
 .eventflow-lane__label {
+  position: absolute;
+  left: 0;
+  bottom: 0;
   display: block;
   padding: 16px 24px 16px 72px;
   font-size: 36px;

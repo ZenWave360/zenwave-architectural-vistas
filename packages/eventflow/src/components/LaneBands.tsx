@@ -2,14 +2,18 @@ import type { PointerEvent } from 'react';
 import { useViewport } from 'reactflow';
 import type { FlowLane } from '../types/FlowViewModel';
 
+const HANDLE_HEIGHT = 64;
+
 export interface LaneBandsProps {
   lanes: readonly FlowLane[];
   /** With it, each lane title has a handle that moves the lane vertically; `deltaY` is in flow units. */
   onMoveLane?: (laneId: string, deltaY: number) => void;
+  /** The handle was released: the page puts the lanes in the order they were left in. */
+  onMoveLaneEnd?: () => void;
 }
 
 /** A canvas background, outside React Flow's interactive nodes and below its renderer. */
-export function LaneBands({ lanes, onMoveLane }: LaneBandsProps) {
+export function LaneBands({ lanes, onMoveLane, onMoveLaneEnd }: LaneBandsProps) {
   const { x, y, zoom } = useViewport();
   const ordered = [...lanes].sort((a, b) => a.order - b.order);
   const transform = `translate(${x}px, ${y}px) scale(${zoom})`;
@@ -27,6 +31,7 @@ export function LaneBands({ lanes, onMoveLane }: LaneBandsProps) {
       if (delta !== 0) onMoveLane(laneId, delta);
     };
     const stop = () => {
+      onMoveLaneEnd?.();
       target.removeEventListener('pointermove', move);
       target.removeEventListener('pointerup', stop);
       target.removeEventListener('pointercancel', stop);
@@ -59,7 +64,7 @@ export function LaneBands({ lanes, onMoveLane }: LaneBandsProps) {
               className="eventflow-lane__handle"
               data-lane-handle={lane.id}
               title="Drag to move the lane up or down"
-              style={{ left: lane.x, top: lane.y }}
+              style={{ left: lane.x, top: lane.y + lane.height - HANDLE_HEIGHT - 12 }}
               onPointerDown={startMove(lane.id)}
             >
               <svg viewBox="0 0 24 24" width="32" height="32" fill="currentColor" aria-hidden="true">

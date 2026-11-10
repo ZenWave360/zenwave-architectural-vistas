@@ -44,6 +44,7 @@ import {
   FlowBounds,
   FlowEdgeType,
   FlowNode,
+  FlowLane,
   FlowNodeType,
   FlowViewModel,
   Point,
@@ -599,6 +600,13 @@ function laneOfNodes(flowViewModel: FlowViewModel): Map<string, string> {
   return result;
 }
 
+/** The empty space the server left under a lane, so a re-stacked set of lanes keeps its spacing. */
+function laneGapAfter(sortedLanes: readonly FlowLane[], laneId: string): number {
+  const index = sortedLanes.findIndex((lane) => lane.id === laneId);
+  const next = sortedLanes[index + 1];
+  return next ? Math.max(0, next.y - (sortedLanes[index].y + sortedLanes[index].height)) : 0;
+}
+
 function EventFlowCanvas({
   flowViewModel,
   theme = 'light',
@@ -644,6 +652,8 @@ function EventFlowCanvas({
 
   // Moving a lane moves the nodes inside it, and a node cannot be dragged out of its lane.
   const [laneOffsets, setLaneOffsets] = useState<Record<string, number>>({});
+  const laneOffsetsRef = useRef(laneOffsets);
+  laneOffsetsRef.current = laneOffsets;
   const laneOfNode = useMemo(() => laneOfNodes(flowViewModel), [flowViewModel]);
   const movedLanes = useMemo(
     () => (flowViewModel.lanes ?? []).map((lane) => ({ ...lane, y: lane.y + (laneOffsets[lane.id] ?? 0) })),
@@ -749,14 +759,38 @@ function EventFlowCanvas({
     setLaneOffsets({});
   }, [flowViewModel]);
 
-  const handleMoveLane = useCallback((laneId: string, deltaY: number) => {
-    setLaneOffsets((current) => ({ ...current, [laneId]: (current[laneId] ?? 0) + deltaY }));
-    setNodes((currentNodes) => currentNodes.map((node) => (
-      laneOfNode.get(node.id) === laneId
-        ? { ...node, position: { x: node.position.x, y: node.position.y + deltaY } }
-        : node
-    )));
+  const shiftLanes = useCallback((deltas: Record<string, number>) => {
+    setLaneOffsets((current) => {
+      const next = { ...current };
+      for (const [laneId, delta] of Object.entries(deltas)) next[laneId] = (next[laneId] ?? 0) + delta;
+      return next;
+    });
+    setNodes((currentNodes) => currentNodes.map((node) => {
+      const delta = deltas[laneOfNode.get(node.id) ?? ''];
+      return delta ? { ...node, position: { x: node.position.x, y: node.position.y + delta } } : node;
+    }));
   }, [laneOfNode]);
+
+  const handleMoveLane = useCallback((laneId: string, deltaY: number) => {
+    shiftLanes({ [laneId]: deltaY });
+  }, [shiftLanes]);
+
+  // On release the lanes go back to a stack, in the order of where they were left, with their nodes.
+  const handleMoveLaneEnd = useCallback(() => {
+    const original = [...(flowViewModel.lanes ?? [])].sort((a, b) => a.y - b.y);
+    if (original.length < 2) return;
+    const current = original.map((lane) => ({ lane, y: lane.y + (laneOffsetsRef.current[lane.id] ?? 0) }));
+    const reordered = [...current].sort((a, b) => (a.y + a.lane.height / 2) - (b.y + b.lane.height / 2));
+    let nextY = original[0].y;
+    const deltas: Record<string, number> = {};
+    reordered.forEach(({ lane, y }, index) => {
+      const gap = index === 0 ? 0 : laneGapAfter(original, reordered[index - 1].lane.id);
+      if (index > 0) nextY += gap;
+      deltas[lane.id] = nextY - y;
+      nextY += lane.height;
+    });
+    shiftLanes(deltas);
+  }, [flowViewModel.lanes, shiftLanes]);
 
   const handleNodeClick = useCallback((_event: React.MouseEvent, node: EventFlowReactNode) => {
     if (onNodeClick && !node.data.synthetic && node.data.sourceRef) {
@@ -791,7 +825,7 @@ function EventFlowCanvas({
         nodesConnectable={false}
         elementsSelectable
       >
-        {hasLanes && <LaneBands lanes={movedLanes} onMoveLane={editable ? handleMoveLane : undefined} />}
+        {hasLanes && <LaneBands lanes={movedLanes} onMoveLane={editable ? handleMoveLane : undefined} onMoveLaneEnd={handleMoveLaneEnd} />}
         <OpeningViewport nodes={openingNodes} />
         <Background gap={24} color={theme === 'dark' ? '#334155' : '#e2e8f0'} />
         <Controls />
