@@ -83,6 +83,9 @@ if (import.meta.env.DEV) {
       variants,
       variant: state.variant,
       diagramId: data.name ?? nameOf(state.file),
+      // The page's own Lanes control and the dev panel's select stay in step.
+      lanesSupported: Boolean(data.laneGraphs),
+      displaySettings: { lanes: state.lanes },
     });
   }
 
@@ -140,6 +143,15 @@ if (import.meta.env.DEV) {
             });
           }
           break;
+        case 'lanesChanged': {
+          const lanes = (msg.payload as { lanes?: Lanes } | undefined)?.lanes;
+          if (lanes === 'none' || lanes === 'systems' || lanes === 'services') {
+            state.lanes = lanes;
+            sendBundle();
+            renderPanel();
+          }
+          break;
+        }
         case 'viewModeChanged':
         case 'labelsChanged':
           console.debug('[dev host]', msg.type, msg.payload);
