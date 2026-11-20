@@ -6,6 +6,8 @@ See [Repository Purpose and Scope](https://github.com/ZenWave360/zenwave-specs/b
 
 For debugging rendering against real DSL output, see [docs/dev-views.md](./docs/dev-views.md) (`pnpm dev:views`).
 
+For the standalone visual ZFL editor harness, see [docs/dev-editor.md](./docs/dev-editor.md) (`pnpm dev:editor`).
+
 ## Workspace
 
 - `packages/eventflow` — the bounded EventFlow and Service Map visualization package.

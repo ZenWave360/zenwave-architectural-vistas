@@ -83,6 +83,37 @@ importers:
         specifier: ^7.3.0
         version: 7.3.6(@types/node@25.9.5)
 
+  apps/zfl-editor-harness:
+    dependencies:
+      '@zenwave360/lsp-js':
+        specifier: 0.1.0-next.21.1
+        version: 0.1.0-next.21.1
+      '@zenwave360/vistas-eventflow':
+        specifier: workspace:*
+        version: link:../../packages/eventflow
+      react:
+        specifier: ^18.2.0
+        version: 18.3.1
+      react-dom:
+        specifier: ^18.2.0
+        version: 18.3.1(react@18.3.1)
+    devDependencies:
+      '@types/react':
+        specifier: ^18.2.55
+        version: 18.3.31
+      '@types/react-dom':
+        specifier: ^18.2.19
+        version: 18.3.7(@types/react@18.3.31)
+      '@vitejs/plugin-react':
+        specifier: ^5.1.2
+        version: 5.2.0(vite@7.3.6(@types/node@25.9.5))
+      typescript:
+        specifier: ^5.3.3
+        version: 5.9.3
+      vite:
+        specifier: ^7.3.0
+        version: 7.3.6(@types/node@25.9.5)
+
   packages/eventcatalog-components:
     dependencies:
       js-yaml:
@@ -917,6 +948,10 @@ packages:
 
   '@vitest/utils@3.2.7':
     resolution: {integrity: sha512-x6BDOd7dyo3PFLY3I9/HJ25X/6OurhGXk2/B9gOZNPF7XDVjeBK4k01lQE5uvDpbuheErh91qYuE1E2OEjK3Rw==}
+
+  '@zenwave360/lsp-js@0.1.0-next.21.1':
+    resolution: {integrity: sha512-mXYEtWCcWevx9EqPK5EZDOU/H7efjKR/3XUzgUTvAH73zhBUOtwROO8f8ZrA6sFHzdSZ3xml8hyPhJL0ZiBF5g==}
+    engines: {node: '>=18'}
 
   ansi-colors@4.1.3:
     resolution: {integrity: sha512-/6w/C21Pm1A7aZitlI5Ni/2J6FFQN8i1Cvz3kHABAAbw93v/NlvKdVOqz7CCWz/3iv/JplRSEEZ83XION15ovw==}
@@ -2665,6 +2700,8 @@ snapshots:
       '@vitest/pretty-format': 3.2.7
       loupe: 3.2.1
       tinyrainbow: 2.0.0
+
+  '@zenwave360/lsp-js@0.1.0-next.21.1': {}
 
   ansi-colors@4.1.3: {}
 
