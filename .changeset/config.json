@@ -10,6 +10,7 @@
   "ignore": [
     "@zenwave360/vistas-eventflow-webview-app",
     "@zenwave360/vistas-eventflow-page",
-    "@zenwave360/vistas-eventflow-toolbar-webview-app"
+    "@zenwave360/vistas-eventflow-toolbar-webview-app",
+    "@zenwave360/vistas-zfl-editor-harness"
   ]
 }

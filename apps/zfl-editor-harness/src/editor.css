@@ -1,0 +1,25 @@
+html, body, #root { height: 100%; margin: 0; font: 13px system-ui, sans-serif; color: #1f2937; }
+.editor { display: grid; grid-template-rows: auto 1fr 240px; height: 100%; }
+.bar { display: flex; gap: 16px; align-items: center; padding: 6px 12px; border-bottom: 1px solid #d4d4d8; }
+.status { margin-left: auto; color: #6b7280; }
+.columns { display: grid; grid-template-columns: 220px 1fr 300px; min-height: 0; }
+.palette, .details { padding: 8px 12px; overflow: auto; }
+.palette { border-right: 1px solid #d4d4d8; }
+.details { border-left: 1px solid #d4d4d8; }
+h2 { font-size: 12px; text-transform: uppercase; color: #6b7280; margin: 4px 0 8px; }
+.palette ul, .diagnostics ul { list-style: none; margin: 0; padding: 0; }
+.palette li { margin-bottom: 8px; display: flex; flex-direction: column; gap: 2px; }
+.palette small { color: #6b7280; }
+.canvas { position: relative; min-width: 0; min-height: 0; }
+.canvas.stale { opacity: 0.55; filter: grayscale(0.6); }
+.canvas.stale::after { content: 'stale: fix the text'; position: absolute; top: 8px; left: 8px; background: #fef3c7; padding: 2px 8px; border-radius: 4px; }
+.empty, .hint { padding: 16px; color: #6b7280; }
+dl { display: grid; grid-template-columns: auto 1fr; gap: 2px 8px; margin: 0 0 12px; }
+dt { color: #6b7280; } dd { margin: 0; word-break: break-all; }
+.field { display: flex; flex-direction: column; gap: 2px; margin-bottom: 8px; }
+.outcome { border: 1px solid #d4d4d8; border-radius: 4px; padding: 6px 8px; margin-top: 8px; }
+.outcome.unsupported, .outcome.invalid, .outcome.stale, .outcome.needs-origin { border-color: #f59e0b; background: #fffbeb; }
+.bottom { display: grid; grid-template-columns: 1fr 1fr; border-top: 1px solid #d4d4d8; min-height: 0; }
+.source, .diagnostics { padding: 4px 12px; min-height: 0; display: flex; flex-direction: column; overflow: auto; }
+.source textarea { flex: 1; font: 12px ui-monospace, Consolas, monospace; resize: none; }
+.diagnostics li.error { color: #b91c1c; } .diagnostics li.warning { color: #b45309; }
