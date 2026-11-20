@@ -6,7 +6,7 @@ Three columns: palette, canvas (the `packages/eventflow` visualizer), details pa
 
 ## Prerequisites
 
-- Node 20 or later and pnpm 10 (`corepack enable` gives you the pinned pnpm).
+- Node `^20.19.0 || >=22.12.0` (Vite 7 requires it) and pnpm 10 (`corepack enable` gives you the pinned pnpm).
 - Internet on the first install: the engine is the published npm package `@zenwave360/lsp-js` (the Kotlin engine compiled to JS, running in a Web Worker).
 - A Chromium based browser, Edge, Chrome or Brave.
 
@@ -35,9 +35,9 @@ Click a node to see it in the details panel. A command shows **Rename** and **Em
 
 | Works | Stubbed |
 | --- | --- |
-| Text to diagram and diagnostics through lsp-js (`zenwave/eventFlowViews`, `publishDiagnostics`) | Edits: the three KMP operations (`renameCommand`, `addEmissionToOccurrence`, `changePolicyTrigger`) are enabled, but the engine has no JS entry point for them, so the page shows the `unsupported` result and keeps what you typed |
+| Text to diagram and diagnostics through lsp-js (`zenwave/eventFlowViews`, `publishDiagnostics`) | Edits: the three KMP operations (`renameCommand`, `addEmissionToOccurrence`, `changePolicyTrigger`) are disabled, with the reason shown, because the engine does not advertise them: lsp-js has no edit request yet. Tick **Mock edit engine** in the top bar to exercise the UI flows with an in-memory regex sketch that is not ZflEditor |
 | Stale diagram on invalid text, empty state without a flow | Palette items for operations KMP does not have yet (add command/event/policy, connect, delete) and Arrange are disabled |
-| Selection, details panel, outcome shown with Discard | Intent queue, pending drawing, impact list, session placement |
+| Selection, details panel, FIFO intent queue (one in flight; after a rejection the later ones are cancelled and listed; Discard), stale handling by document revision, commit on Enter or blur with Escape to cancel | Pending drawing on the canvas, impact list, session placement, drag and drop from the palette (not built yet) |
 
 The adapter seam is `apps/zfl-editor-harness/src/adapter.ts`. `lspWorkerAdapter.ts` implements it; VS Code will implement the same interface later. When an edit request exists in lsp-js, only `prepareEdit` in `lspWorkerAdapter.ts` changes: an `applied` outcome carries edits that the page already applies to the text.
 

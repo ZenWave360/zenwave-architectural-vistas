@@ -23,3 +23,6 @@ dt { color: #6b7280; } dd { margin: 0; word-break: break-all; }
 .source, .diagnostics { padding: 4px 12px; min-height: 0; display: flex; flex-direction: column; overflow: auto; }
 .source textarea { flex: 1; font: 12px ui-monospace, Consolas, monospace; resize: none; }
 .diagnostics li.error { color: #b91c1c; } .diagnostics li.warning { color: #b45309; }
+.outcome.rejected, .outcome.cancelled { border-color: #f59e0b; background: #fffbeb; }
+.outcome.pending, .outcome.inflight { border-style: dashed; opacity: 0.7; }
+.queue { list-style: none; padding: 0; margin: 8px 0 0; }
