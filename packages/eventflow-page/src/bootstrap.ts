@@ -27,6 +27,28 @@ export function readLanesSupported(value: unknown): boolean | undefined {
 export interface FlowVariant {
   id: string;
   title: string;
+  /** The end outcome, and the start followed by the choices taken. Absent from an older server. */
+  outcome?: string;
+  steps?: string[];
+}
+
+/**
+ * A line of the variant tree (EF-R25). steps are those the line adds to its parent. A leaf's id is its variant's id;
+ * the id of a line with children stands for every variant under it, and count says how many.
+ */
+export interface FlowVariantNode {
+  id: string;
+  steps: string[];
+  /** The full title of the path down to this line, as a variant's title is written. */
+  title: string;
+  count: number;
+  children: FlowVariantNode[];
+}
+
+/** The variants that end in one outcome, as a prefix tree. Groups come in the order of the flow's `end`. */
+export interface FlowVariantGroup {
+  outcome: string;
+  nodes: FlowVariantNode[];
 }
 
 /** What the host did with the positions saved for this flow, as the server reported it. */
@@ -56,6 +78,11 @@ export interface RenderBundle {
    * The page shows them in this order and does not invent, reorder or rename any.
    */
   variants?: FlowVariant[];
+  /**
+   * The variants grouped by outcome as a prefix tree (EF-R25). Omit to leave the current tree. Without a tree the
+   * dropdown is the flat list of variants. Any id in it can be the variant of a bundle and be sent back as the user's choice.
+   */
+  variantTree?: FlowVariantGroup[];
   /**
    * The variant whose graph this bundle carries, or null for the full diagram. Omit to leave the current selection.
    * The page does not swap graphs for this field: flowGraph is the graph to show, already laid out by the server.
@@ -156,9 +183,29 @@ function readVariants(value: unknown): FlowVariant[] {
     if (typeof id !== 'string' || id.length === 0 || seen.has(id)) continue;
     seen.add(id);
     const title = entry.title;
-    variants.push({ id, title: typeof title === 'string' && title.length > 0 ? title : id });
+    const variant: FlowVariant = { id, title: typeof title === 'string' && title.length > 0 ? title : id };
+    if (typeof entry.outcome === 'string') variant.outcome = entry.outcome;
+    if (Array.isArray(entry.steps)) variant.steps = entry.steps.filter((step): step is string => typeof step === 'string');
+    variants.push(variant);
   }
   return variants;
+}
+
+function readNode(value: unknown): FlowVariantNode | undefined {
+  if (!isRecord(value) || typeof value.id !== 'string' || value.id.length === 0 || !Array.isArray(value.steps)) return undefined;
+  const steps = value.steps.filter((step): step is string => typeof step === 'string');
+  const children = Array.isArray(value.children) ? value.children.map(readNode).filter((node): node is FlowVariantNode => node !== undefined) : [];
+  const title = typeof value.title === 'string' && value.title.length > 0 ? value.title : steps.join(' → ');
+  return { id: value.id, steps, title, count: typeof value.count === 'number' ? value.count : 1, children };
+}
+
+function readVariantTree(value: unknown): FlowVariantGroup[] {
+  if (!Array.isArray(value)) return [];
+  return value.flatMap((group): FlowVariantGroup[] => {
+    if (!isRecord(group) || typeof group.outcome !== 'string' || !Array.isArray(group.nodes)) return [];
+    const nodes = group.nodes.map(readNode).filter((node): node is FlowVariantNode => node !== undefined);
+    return nodes.length > 0 ? [{ outcome: group.outcome, nodes }] : [];
+  });
 }
 
 function readSavedPositions(value: unknown): SavedPositions | undefined {
@@ -190,6 +237,9 @@ export function readRenderBundle(payload: unknown): RenderBundle {
   };
   if (Object.prototype.hasOwnProperty.call(record, 'variants')) {
     bundle.variants = readVariants(record.variants);
+  }
+  if (Object.prototype.hasOwnProperty.call(record, 'variantTree')) {
+    bundle.variantTree = readVariantTree(record.variantTree);
   }
   if (Object.prototype.hasOwnProperty.call(record, 'variant')) {
     bundle.variant = readVariant(record.variant);

@@ -12,7 +12,8 @@
     "./vite": "./src/vite.ts"
   },
   "scripts": {
-    "check": "tsc --noEmit -p tsconfig.json"
+    "check": "tsc --noEmit -p tsconfig.json",
+    "test": "node --test \"test/*.test.ts\""
   },
   "dependencies": {
     "@zenwave360/vistas-eventflow": "workspace:*",

@@ -29,6 +29,27 @@ export interface EventFlowDisplaySettings {
 export interface FlowVariant {
   id: string;
   title: string;
+  /** The end outcome, and the start followed by the choices taken. Absent from an older server. */
+  outcome?: string;
+  steps?: string[];
+}
+
+/**
+ * A line of the variant tree (EF-R25). steps are those the line adds to its parent. A leaf's id is its variant's id;
+ * the id of a line with children stands for every variant under it, and count says how many.
+ */
+export interface FlowVariantNode {
+  id: string;
+  steps: string[];
+  title: string;
+  count: number;
+  children: FlowVariantNode[];
+}
+
+/** The variants that end in one outcome, as a prefix tree. Groups come in the order of the flow's `end`. */
+export interface FlowVariantGroup {
+  outcome: string;
+  nodes: FlowVariantNode[];
 }
 
 /** Host to page. flowGraph and serviceGraph are the server's view models, passed through unchanged. */
@@ -57,8 +78,14 @@ export interface RenderBundleMessage {
      */
     variants?: FlowVariant[];
     /**
+     * The variants grouped by outcome as a prefix tree (EF-R25), from zenwave/eventFlowViews `variantTree`. Omit to leave
+     * the current tree. The toolbar page draws the dropdown as optgroups when there is one, and the flat list otherwise.
+     * Any id in the tree can be sent as `variant` and comes back in variantChanged.
+     */
+    variantTree?: FlowVariantGroup[];
+    /**
      * The variant whose laid-out flowGraph this bundle carries, or null for the full diagram.
-     * Omit to leave the current selection. An id that is not in the current variants selects the full diagram.
+     * Omit to leave the current selection. An id that is neither in the current variants nor in the variant tree selects the full diagram.
      * The page does not choose or lay out a graph for this field. It shows flowGraph as sent.
      */
     variant?: string | null;
