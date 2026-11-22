@@ -28,11 +28,12 @@ createRoot(rootElement).render(
       ? <span className="status-message" role="status">Lanes use automatic layout; saved positions are not applied</span>
       : viewMode === 'flow' && (savedPositions?.exists || savePositionsFailure !== undefined) ? <SavedPositionsStatus saved={savedPositions} failure={savePositionsFailure} /> : null)}
   >
-    {({ viewMode, setViewMode, variants, variantId, setVariantId, canSavePositions, currentPositions, markPositionsSaved, humanizeLabels, setHumanizeLabels, lanes, setLanes, lanesActive, lanesSupported }) => (
+    {({ viewMode, setViewMode, variants, variantTree, variantId, setVariantId, canSavePositions, currentPositions, markPositionsSaved, humanizeLabels, setHumanizeLabels, lanes, setLanes, lanesActive, lanesSupported }) => (
       <div className="eventflow-toolbar">
         {viewMode === 'flow' && (
           <VariantSelector
             variants={variants}
+            variantTree={variantTree}
             variantId={variantId}
             onUserChange={(next) => {
               if (next === variantId) return;

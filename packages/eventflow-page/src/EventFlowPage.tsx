@@ -11,6 +11,7 @@ import {
   readDisplaySettings,
   type BridgeMessage,
   type FlowVariant,
+  type FlowVariantGroup,
   type NodePositions,
   type RenderBundle,
   type SavedPositions,
@@ -26,6 +27,8 @@ export interface EventFlowPageState {
   setViewMode: (viewMode: ViewMode) => void;
   /** Variants the host has listed, in that order. Empty when the flow has none. */
   variants: readonly FlowVariant[];
+  /** The variants as a tree grouped by outcome (EF-R25), in the host's order. Empty when the host sent none. */
+  variantTree: readonly FlowVariantGroup[];
   /** The variant the dropdown shows. Null is the full diagram. It can move ahead of the graph on screen. */
   variantId: string | null;
   /**
@@ -58,36 +61,44 @@ export interface EventFlowPageState {
 
 interface VariantState {
   variants: FlowVariant[];
+  variantTree: FlowVariantGroup[];
   variantId: string | null;
   /** The variant whose graph is on screen. Null is the full diagram. This, not the dropdown, frames the flow. */
   shownVariantId: string | null;
 }
 
-const NO_VARIANTS: VariantState = { variants: [], variantId: null, shownVariantId: null };
+const NO_VARIANTS: VariantState = { variants: [], variantTree: [], variantId: null, shownVariantId: null };
 
-function listedVariant(variants: readonly FlowVariant[], variantId: string | null): string | null {
+function treeHas(nodes: readonly FlowVariantGroup['nodes'][number][], id: string): boolean {
+  return nodes.some((node) => node.id === id || treeHas(node.children, id));
+}
+
+/** A listed variant, or a line of the tree, which stands for the variants under it (EF-R25). */
+function listedVariant(variants: readonly FlowVariant[], tree: readonly FlowVariantGroup[], variantId: string | null): string | null {
   if (!variantId) return null;
-  return variants.some((item) => item.id === variantId) ? variantId : null;
+  return variants.some((item) => item.id === variantId) || tree.some((group) => treeHas(group.nodes, variantId)) ? variantId : null;
 }
 
 /** Applies the host's variants and variant. An id that is not in the list selects the full diagram. */
 function applyHostVariants(current: VariantState, bundle: RenderBundle): VariantState {
-  if (bundle.variants === undefined && bundle.variant === undefined) return current;
+  if (bundle.variants === undefined && bundle.variant === undefined && bundle.variantTree === undefined) return current;
   const variants = bundle.variants ?? current.variants;
+  const variantTree = bundle.variantTree ?? current.variantTree;
   const shownVariantId = bundle.variant !== undefined
-    ? listedVariant(variants, bundle.variant)
-    : listedVariant(variants, current.shownVariantId);
+    ? listedVariant(variants, variantTree, bundle.variant)
+    : listedVariant(variants, variantTree, current.shownVariantId);
   const variantId = bundle.variant !== undefined
     ? shownVariantId
-    : listedVariant(variants, current.variantId);
+    : listedVariant(variants, variantTree, current.variantId);
   if (
     variants === current.variants
+    && variantTree === current.variantTree
     && variantId === current.variantId
     && shownVariantId === current.shownVariantId
   ) {
     return current;
   }
-  return { variants, variantId, shownVariantId };
+  return { variants, variantTree, variantId, shownVariantId };
 }
 
 /**
@@ -222,7 +233,7 @@ export function EventFlowPage({ initialFlowViewModel = null, initialServiceViewM
 
   const setVariantId = (variantId: string | null) => {
     setVariantState((current) => {
-      const next = listedVariant(current.variants, variantId);
+      const next = listedVariant(current.variants, current.variantTree, variantId);
       return next === current.variantId ? current : { ...current, variantId: next };
     });
   };
@@ -259,7 +270,7 @@ export function EventFlowPage({ initialFlowViewModel = null, initialServiceViewM
       } else if (bundle.flowGraph != null || bundle.serviceGraph != null) {
         setDiagramId(undefined);
       }
-      if (bundle.variants !== undefined || bundle.variant !== undefined) {
+      if (bundle.variants !== undefined || bundle.variant !== undefined || bundle.variantTree !== undefined) {
         setVariantState((current) => applyHostVariants(current, bundle));
       }
     };
@@ -342,6 +353,7 @@ export function EventFlowPage({ initialFlowViewModel = null, initialServiceViewM
         viewMode,
         setViewMode,
         variants: variantState.variants,
+        variantTree: variantState.variantTree,
         variantId: variantState.variantId,
         setVariantId,
         canSavePositions: viewMode === 'flow' && !lanesActive && positionsMoved && variantState.variantId === null && variantState.shownVariantId === null,

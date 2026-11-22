@@ -188,6 +188,59 @@ describe('EventFlow variant dropdown', { skip }, () => {
     }
   });
 
+  test('toolbar page: a variant tree is grouped by outcome, a line is chosen like a variant and its title shows in the toolbar', async () => {
+    const leaf = (id, steps, title) => ({ id, steps, title, count: 1, children: [] });
+    const variantTree = [
+      {
+        outcome: 'completed',
+        nodes: [{
+          id: 'branch:completed:0',
+          steps: ['Start', 'reserved'],
+          title: 'from Start → reserved to completed',
+          count: 2,
+          children: [
+            leaf('sequence:completed:0', ['shipped'], 'from Start → reserved → shipped to completed'),
+            leaf('sequence:completed:1', ['pickup'], 'from Start → reserved → pickup to completed'),
+          ],
+        }],
+      },
+      { outcome: 'failed', nodes: [leaf('sequence:failed:2', ['Start', 'declined'], 'from Start → declined to failed')] },
+    ];
+    const treeVariants = [
+      { id: 'sequence:completed:0', title: 'from Start → reserved → shipped to completed' },
+      { id: 'sequence:completed:1', title: 'from Start → reserved → pickup to completed' },
+      { id: 'sequence:failed:2', title: 'from Start → declined to failed' },
+    ];
+    const page = await openPage(toolbarServer);
+    try {
+      await page.evaluate(post(bundle({ variants: treeVariants, variantTree })));
+      await page.waitFor(`document.querySelectorAll('.variant-selector optgroup').length === 2`);
+      assert.deepEqual(await page.evaluate(`[...document.querySelectorAll('.variant-selector select > option, .variant-selector optgroup')].map((node) => node.tagName === 'OPTGROUP' ? 'group:' + node.label : node.textContent)`), [
+        'Full diagram',
+        'group:completed',
+        'group:failed',
+      ]);
+      assert.deepEqual(await page.evaluate(`[...document.querySelectorAll('.variant-selector optgroup:first-of-type option')].map((option) => option.textContent)`), [
+        'Start → reserved (2)',
+        '├─ shipped',
+        '└─ pickup',
+      ]);
+      assert.equal(await page.evaluate(`document.querySelector('.variant-selector .variant-title') === null`), true);
+
+      await page.evaluate(chooseVariant('branch:completed:0'));
+      await page.waitFor(`${variantMessages}.length === 1`);
+      assert.deepEqual(await page.evaluate(variantMessages), [{ type: 'variantChanged', payload: { variant: 'branch:completed:0' } }]);
+      assert.equal(await page.evaluate(`document.querySelector('.variant-selector .variant-title').textContent`), 'from Start → reserved to completed (2 variants)');
+
+      // The host answers with the line as the shown variant: the choice stays instead of falling back to the full diagram.
+      await page.evaluate(post(bundle({ flowGraph: flowGraph(variantNodes), variants: treeVariants, variantTree, variant: 'branch:completed:0' })));
+      await page.waitFor(hasNode('command:CancelOrder'));
+      assert.equal(await page.evaluate(selectedVariant), 'branch:completed:0');
+    } finally {
+      await browser.closePage(page);
+    }
+  });
+
   test('toolbar page: the dropdown lists the full diagram and the host variants, on the right', async () => {
     const page = await openPage(toolbarServer);
     try {

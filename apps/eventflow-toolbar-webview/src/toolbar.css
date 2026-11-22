@@ -73,6 +73,16 @@
   padding: 2px 4px;
 }
 
+/* The full title of the chosen line (EF-R25): the select itself only shows its indented line. */
+.variant-selector .variant-title {
+  min-width: 0;
+  max-width: 360px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  opacity: 0.8;
+}
+
 .variant-selector select:focus-visible,
 .lanes-control select:focus-visible {
   outline: 1px solid var(--vscode-focusBorder, #2563eb);
