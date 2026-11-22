@@ -66,6 +66,19 @@ test('a long run is shortened with an ellipsis, a short one is not', () => {
   assert.equal(runLabel(['a', 'b', 'c', 'd', 'e']), 'a → … → e');
 });
 
+test('a variant that ends at a line with others under it is a leaf that adds no steps, and stays selectable', () => {
+  const groups = variantOptionGroups([{
+    outcome: 'x',
+    nodes: [{
+      id: 'branch:x:1', steps: ['A', 'x'], title: 'from A → x to x', count: 2,
+      children: [leaf('v0', [], 'from A → x to x'), leaf('v1', ['y'], 'from A → x → y to x')],
+    }],
+  }]);
+  assert.deepEqual(groups[0].options.map((option) => [option.value, option.label]), [
+    ['branch:x:1', nbsp('A → x (2)')], ['v0', nbsp('├─ (ends here)')], ['v1', nbsp('└─ y')],
+  ]);
+});
+
 test('a group with several roots draws no connector for the roots', () => {
   const groups = variantOptionGroups([{ outcome: 'x', nodes: [leaf('a', ['A', 'x'], 't'), leaf('b', ['B', 'y'], 't')] }]);
   assert.deepEqual(groups[0].options.map((option) => option.label), [nbsp('A → x'), nbsp('B → y')]);

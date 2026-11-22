@@ -17,8 +17,9 @@ const NBSP = '\u00a0';
 /** A run of more steps than this is shortened to its first and last step. */
 const MAX_STEPS = 3;
 
-/** The steps a line adds, joined as a title is; a long run keeps its first and last step around an ellipsis. */
+/** The steps a line adds, joined as a title is; a variant that ends at a line with others under it adds none; a long run keeps its first and last step around an ellipsis. */
 export function runLabel(steps: readonly string[]): string {
+  if (steps.length === 0) return '(ends here)';
   const shown = steps.length > MAX_STEPS ? [steps[0], '…', steps[steps.length - 1]] : steps;
   return shown.join(' → ');
 }
