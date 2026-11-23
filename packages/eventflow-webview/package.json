@@ -1,6 +1,6 @@
 {
   "name": "@zenwave360/vistas-eventflow-webview",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Static EventFlow and Service Map webview bundle for IDE hosts such as VS Code webviews and IntelliJ JCEF; a second page adds a Flow/Systems selector",
   "type": "module",
   "repository": {
