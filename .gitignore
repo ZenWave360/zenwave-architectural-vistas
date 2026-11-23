@@ -28,6 +28,7 @@ Thumbs.db
 
 # Built webview copied into the publishable package
 packages/eventflow-webview/webview/
+packages/eventflow-webview/webview-toolbar/
 packages/eventflow-webview/build/
 
 # Local Serena HTTP client wiring (localhost ports; do not commit)

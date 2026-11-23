@@ -8,7 +8,8 @@ export type { EventFlowDisplaySettings, EventFlowVisualizerProps } from './Event
 export { default } from './EventFlowVisualizer';
 export { ServiceMapVisualizer } from './ServiceMapVisualizer';
 export type { ServiceMapVisualizerProps } from './ServiceMapVisualizer';
-export type { DiagramDisplaySettings } from './labelFormatting';
+export type { DiagramDisplaySettings, LanesMode } from './labelFormatting';
+export { isLanesMode } from './labelFormatting';
 export { humanizeLabel, humanizeMultilineLabel } from './labelFormatting';
 
 // Types - FlowIR (Canonical IR)
@@ -27,6 +28,7 @@ export type {
   FlowEdgeView,
   FlowBounds,
   FlowSystemGroupView,
+  FlowLane,
   LayoutMetadata,
   FlowViewModel,
 } from './types/FlowViewModel';
@@ -62,6 +64,8 @@ export { EndNode } from './components/EndNode';
 export type { EndNodeData } from './components/EndNode';
 export { OutcomeNode } from './components/OutcomeNode';
 export type { OutcomeNodeData } from './components/OutcomeNode';
+export { ReadModelNode } from './components/ReadModelNode';
+export type { ReadModelNodeData } from './components/ReadModelNode';
 
 // Edge components (for customization)
 export { CausationEdge } from './components/CausationEdge';

@@ -1,0 +1,24 @@
+{
+  "name": "@zenwave360/vistas-zfl-editor-harness",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "check": "tsc --noEmit -p tsconfig.json",
+    "test": "node --test \"test/*.test.ts\"",
+    "dev": "vite --configLoader runner --open /"
+  },
+  "dependencies": {
+    "@zenwave360/lsp-js": "0.1.0-next.21.1",
+    "@zenwave360/vistas-eventflow": "workspace:*",
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0"
+  },
+  "devDependencies": {
+    "@types/react": "^18.2.55",
+    "@types/react-dom": "^18.2.19",
+    "@vitejs/plugin-react": "^5.1.2",
+    "typescript": "^5.3.3",
+    "vite": "^7.3.0"
+  }
+}

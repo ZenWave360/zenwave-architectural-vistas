@@ -1,7 +1,15 @@
 # @zenwave360/vistas-eventflow-webview
 
-The EventFlow and Service Map visualizer as a static web page, for IDE hosts: VS Code webviews, IntelliJ JCEF, or any
-page that embeds it in an iframe. The page is built from `apps/eventflow-webview` and has no runtime dependencies.
+The EventFlow and Service Map visualizer as static web pages, for IDE hosts: VS Code webviews, IntelliJ JCEF, or any
+page that embeds them in an iframe. The pages have no runtime dependencies. There are two, built from the same diagram
+component (`packages/eventflow-page`):
+
+| Directory | Built from | Use it when |
+| --- | --- | --- |
+| `webview/` | `apps/eventflow-webview` | The host has its own controls, such as the IntelliJ Swing toolbar. The page has no selector. |
+| `webview-toolbar/` | `apps/eventflow-toolbar-webview` | The host has no toolbar inside the editor, such as VS Code. The page adds a Flow / Systems selector and, when the flow has variants, a variant dropdown. |
+
+Both pages draw zoom and fit controls inside the diagram, speak the same protocol and have the same protocol version.
 
 For a React application, use `@zenwave360/vistas-eventflow` instead.
 
@@ -13,8 +21,16 @@ webview/
   assets/index-*.js the page script, including the host bridge
   assets/index-*.css all styles; system fonts only, no @font-face, no url() except data:
   protocol.json     {"protocol":"zenwave.eventflow.webview","protocolVersion":1}
+webview-toolbar/    the page with a Flow / Systems selector; same files and shape as webview/
+  index.html
+  assets/index-*.js
+  assets/index-*.css
+  protocol.json
 index.js            protocol constants (no Node API)
 ```
+
+Everything below applies to both pages. Replace `webview/` with `webview-toolbar/` to load the page with a selector;
+`@zenwave360/vistas-eventflow-webview/webview-toolbar/*` and `.../webview-toolbar/protocol.json` are exported.
 
 Asset file names contain a content hash and change between versions. Read them from `index.html`; do not hard-code them.
 
@@ -54,6 +70,73 @@ The page picks the first channel that exists:
 3. `window.parent.postMessage(message, "*")`, only when the page is inside a frame (`parent !== window`).
 4. Otherwise, no message is sent. This is the IntelliJ JCEF case: JCEF uses the browser load event instead.
 
+### Page to host: `viewModeChanged`
+
+Sent only by the page in `webview-toolbar/`, when the user changes the view in its selector:
+
+```json
+{ "type": "viewModeChanged", "payload": { "viewMode": "services" } }
+```
+
+It uses the same channel as `webviewReady`. The page does not send it when the host asked for the change with
+`setViewMode` or `renderBundle`; the selector follows those messages silently. The page in `webview/` never sends it.
+A host may ignore it, so adding it did not change `protocolVersion`.
+
+### Page to host: `variantChanged`
+
+Sent only by the page in `webview-toolbar/`, when the user chooses a variant or the full diagram:
+
+```json
+{ "type": "variantChanged", "payload": { "variant": "OrderCancelled" } }
+```
+
+`variant` is `null` for the full diagram:
+
+```json
+{ "type": "variantChanged", "payload": { "variant": null } }
+```
+
+The page does not change the graph. It waits for the host to send a `renderBundle` whose `flowGraph` is the laid-out
+graph for that choice. It does not send `variantChanged` when that bundle, or any other host message, sets the
+choice. The dropdown moves at the user's click, and a later host bundle replaces the selection without a message.
+The page in `webview/` never sends it. A host may ignore it, so adding it did not change `protocolVersion`.
+
+### Page to host: `savePositions`
+
+Sent only by the page in `webview-toolbar/`, when the user clicks **Save positions** on the toolbar:
+
+```json
+{ "type": "savePositions", "payload": { "positions": { "event:Start": { "x": 40, "y": 80 }, "command:PlaceOrder": { "x": 320, "y": 80 } } } }
+```
+
+The button is on the right of the toolbar. It shows only in the Flow view of the full diagram, and only after the user
+moved a node since the last `renderBundle` that carried a graph. It is hidden again after the click, when a new
+graph arrives, in a variant, and in Systems. `positions` has every node of the full diagram as it is shown, by node
+id, rounded to whole numbers. The host writes all of them or none; discarding saved positions is the host's. The page
+in `webview/` has no button and never sends it. A host may ignore it, so `protocolVersion` stays 1.
+
+### Page to host: `labelsChanged`
+
+Sent only by the page in `webview-toolbar/`, when the user flips the **Humanize labels** toggle:
+
+```json
+{ "type": "labelsChanged", "payload": { "humanize": false } }
+```
+
+The toggle starts from `displaySettings.humanizeLabels` (true when the host never sent it). The page re-renders its
+labels at once and then sends this message. It is not sent when the host sets `displaySettings`. A host may ignore it, so
+`protocolVersion` stays 1.
+
+| Direction | `type` | `payload` | Sent by |
+| --- | --- | --- | --- |
+| page to host | `webviewReady` | `{ protocol, protocolVersion }` | both pages, once, when loaded |
+| page to host | `viewModeChanged` | `{ viewMode: "flow" \| "services" }` | `webview-toolbar/` only, for the user's own choice |
+| page to host | `variantChanged` | `{ variant: string \| null }` | `webview-toolbar/` only, for the user's own choice. `null` is the full diagram |
+
+| page to host | `savePositions` | `{ positions: { [nodeId]: { x, y } } }` | `webview-toolbar/` only, after the user clicks Save positions |
+| page to host | `labelsChanged` | `{ humanize: boolean }` | `webview-toolbar/` only, when the user flips Humanize labels |
+| page to host | `lanesChanged` | `{ lanes: "none" \| "systems" \| "services" }` | `webview-toolbar/` only, when the user changes Lanes; the host returns the server layout |
+
 A host that receives no `webviewReady` is looking at a page that is still loading or failed to load.
 `payload` was added in protocol version 1; a page without it predates versioning.
 
@@ -64,14 +147,86 @@ Hosts send messages with `window.postMessage` semantics: VS Code `webview.postMe
 
 | `type` | `payload` | Effect |
 | --- | --- | --- |
-| `renderBundle` | `{ flowGraph?, serviceGraph?, viewMode?: "flow" \| "services", displaySettings?: { humanizeLabels?: boolean } }` | Shows the given view models. Pass the server's `flowGraph` and `serviceGraph` unchanged. A missing or `null` graph shows a waiting state for that view. `displaySettings` is merged into the current settings. |
-| `setViewMode` | `{ viewMode: "flow" \| "services" }` | Switches the view without resending the model. |
+| `renderBundle` | `{ flowGraph?, serviceGraph?, viewMode?: "flow" \| "services", displaySettings?: { humanizeLabels?: boolean }, lanesSupported?: boolean, diagramId?: string, variants?: [{ id, title }], variant?: string \| null }` | Shows the given view models. Pass the server's `flowGraph` and `serviceGraph` unchanged. A missing or `null` graph shows a waiting state for that view. `displaySettings` is merged into the current settings. A host should send something stable for one diagram, such as the document URI and the flow name, as `diagramId`. `diagramId` belongs to the diagrams in the same `renderBundle`; a bundle with a graph and no `diagramId` has no identity. A bundle that changes only `viewMode` or display settings leaves the identity alone. `variants` and `variant` are optional; see below. |
+| `setViewMode` | `{ viewMode: "flow" \| "services" }` | Switches the view without resending the model. In `webview-toolbar/` the selector moves too, and the page sends no `viewModeChanged`. |
 | `setDisplaySettings` | `{ displaySettings: { humanizeLabels?: boolean } }` | Merged into the current settings; fields not sent keep their values. |
 | `highlightNode` | `{ nodeId: string \| null }` | Highlights the flow node with that id (for example a hierarchy node's `viewNodeIds` entry); `null` clears it. |
 | `renderGraph` | `{ graph }` | Legacy flow-only form. Use `renderBundle`. |
+| `savePositionsFailed` | `{ message: string }` | The host could not write the positions it got in `savePositions`. `webview-toolbar/` shows `Positions not saved: <message>` in its status bar and shows Save positions again, until the next click on it or the next `renderBundle`. `webview/` ignores it. Additive: `protocolVersion` stays 1. |
 
 Messages that arrive before the renderer has started are queued and applied when it starts. Messages with an unknown
 `type`, or without a string `type`, are ignored.
+
+### Variants on `renderBundle`
+
+`variants` and `variant` ride on `renderBundle`. A host that sends neither gets the page it gets today: no dropdown,
+and the flow frames on `diagramId` alone.
+
+```json
+{
+  "type": "renderBundle",
+  "payload": {
+    "flowGraph": {},
+    "serviceGraph": {},
+    "viewMode": "flow",
+    "diagramId": "file:///flows/checkout.zfl#Checkout",
+    "variants": [
+      { "id": "OrderCancelled", "title": "Order Cancelled" },
+      { "id": "PaymentFailed", "title": "Payment Failed" }
+    ],
+    "variant": null
+  }
+}
+```
+
+| Field | When omitted | When sent |
+| --- | --- | --- |
+| `variants` | The current list stays. The first bundle has none, so the dropdown stays hidden. | Replaces the list. `[]` hides the dropdown. Entries without a non-empty string `id` are dropped, and a repeated `id` is dropped. A missing or empty `title` is shown as the `id`. Order is kept. |
+| `variant` | The current selection stays. | A string `id` that is in the current list selects that variant. `null`, `""`, or an id that is not in the list selects the full diagram. |
+
+Send the list in the same bundle as the selection, or in an earlier one. The page shows `flowGraph` as the host sent
+it. It does not filter the full diagram down to a variant and it does not lay nodes out. The server's graph for that
+variant is the graph to put in `flowGraph`.
+
+The dropdown is part of `webview-toolbar/` only. It lists "Full diagram" and then each variant. It is not rendered
+when `variants` is empty, and not rendered while Systems is showing. A host `renderBundle` moves it and sends no
+`variantChanged`. The minimal page has no dropdown. Its host sends the same fields and the matching `flowGraph`.
+
+### `diagramId` when a variant is showing
+
+A variant bundle keeps the full diagram's `diagramId`. That id names the flow, for example the document URI and the
+flow name, and a variant is the same flow.
+
+The page frames the flow canvas on `diagramId` together with the variant whose graph is on screen. Choosing a
+variant, or returning to the full diagram, changes that identity, so the opening zoom runs for the graph in that
+bundle. A later bundle for the same `diagramId` and the same variant does not move the view, including a bundle that
+only moves nodes. Systems keeps framing on `diagramId` alone. A host that sends a different `diagramId` still
+reframes, as it does today.
+
+The dropdown can show the user's choice before that bundle arrives. Framing follows the variant in the bundle, which
+is the graph on screen, so the opening zoom runs when the variant's graph arrives and not before.
+
+### Node positions
+
+Dragging a node updates the canvas only. The page tells the host about positions only through `savePositions`, when
+the user clicks Save positions in `webview-toolbar/`, and never for a variant. A variant never reads or writes saved
+positions. The next `renderBundle` replaces the graph with what the host sends.
+
+### `savedPositions`
+
+`renderBundle` may carry `savedPositions: { exists, applied, missing? }` (`missing` is the array of node ids the saved positions do not cover), what the host did with the positions saved
+for this flow. When `exists` is true and `applied` is false, `webview-toolbar/` shows a small note, "Saved positions do
+not match this flow; automatic layout", with the number of `missing` ids when given. When `applied` is true it shows a subtle
+"Saved layout". Without the field, or with `exists: false`, nothing is shown, and nothing is shown for a variant.
+The minimal page shows nothing.
+
+### IntelliJ
+
+`pnpm sync:intellij` builds the minimal page and copies `apps/eventflow-webview/dist` into the plugin
+(`src/main/resources/web/eventflow`). It does not copy `webview-toolbar/`. The script needs no change for variants:
+the copied page accepts the new fields and still has no dropdown. A Swing control that offers variants reads
+`variants` from `zenwave/eventFlowViews` and sends `renderBundle` with `variant`, the full diagram's `diagramId`,
+and that variant's laid-out `flowGraph`. The minimal page does not send `variantChanged`.
 
 ## Versioning
 
@@ -89,3 +244,46 @@ ignores what it does not know.
 
 A host should pin an exact package version in its lockfile, check `protocolVersion` at build time (or on
 `webviewReady`), and show an error instead of a blank panel when the version is not one it supports.
+
+### Lanes (protocol v1 addition)
+
+The toolbar page has a **Lanes** control: **No lanes**, **Systems**, **Services**.
+Initialize it alongside humanized labels in the host's render bundle:
+
+```json
+{ "type": "renderBundle", "payload": { "flowGraph": {}, "displaySettings": { "humanizeLabels": true, "lanes": "systems" } } }
+```
+
+`flowGraph` above stands for the actual server view model, passed through unchanged.
+`displaySettings.lanes` accepts `"none" | "systems" | "services"`, defaults to `"none"`,
+and can also arrive through `setDisplaySettings` or `window.setDisplaySettings`.
+Omitted fields retain their value; invalid lanes values are ignored. Host settings never send a message back.
+
+`renderBundle.payload.lanesSupported` (boolean) tells the page whether the server offers lanes. Current hosts always send it;
+older hosts omit it, and an omitted or non-boolean value counts as `false`: the page never offers lanes unless the host sends `true`. When it is not `true` the Lanes control is hidden
+(not just disabled), lanes are treated as `"none"` whatever `displaySettings.lanes` or the graph says, and no `lanesChanged` is sent.
+The last boolean received is kept until another arrives. A flow graph with `lanes: null` or `lanes: []` has no bands and counts as No lanes.
+For the user's own choice only, the toolbar page sends:
+
+```json
+{ "type": "lanesChanged", "payload": { "lanes": "services" } }
+```
+
+Validate `payload.lanes` against those three strings. The host keeps the choice per diagram,
+requests the server layout, and returns it in `renderBundle.flowGraph` with `displaySettings.lanes`.
+The page waits for that graph; it does no lane layout. `viewMode: "services"` still means the service map,
+and existing view messages keep their meaning. The minimal page renders bands but has no Lanes control or outbound message.
+
+A flow graph may contain `lanes: FlowLane[] | null` (omission is supported for older servers).
+Each band has `{ id, kind: "system" | "service", label, system: string | null, x, y, width, height, order }`;
+nodes may have `lane: string | null`. Rectangles are drawn as supplied, sorted by `order`,
+with labels at the left and alternating theme-aware fills below nodes and edges. Bands are neither draggable nor selectable.
+The flow renderer continues to ignore `systemGroups` for both lane kinds: system boxes would duplicate Systems bands,
+and could enclose unrelated service bands in Services mode.
+
+Variants keep their selector and use the bands in the variant's server graph. Canvas framing includes the displayed
+lane mode and variant, rather than a pending user choice. While lanes are requested or still displayed,
+node dragging and Save positions are disabled (tooltip: **Lanes use automatic layout**), and the toolbar page's status bar
+reads **Lanes use automatic layout; saved positions are not applied**, replacing saved-position and save-failure states.
+Switching to No lanes waits for the host's graph before restoring editing. With null/omitted bands and No lanes,
+existing dragging, saving, variant and status behavior stays the same. Lanes never write positions.

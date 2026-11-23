@@ -24,7 +24,8 @@ export enum FlowNodeType {
   COMMAND = "COMMAND",
   EVENT = "EVENT",
   POLICY = "POLICY",
-  END = "END"
+  END = "END",
+  READ_MODEL = "READ_MODEL"
 }
 
 /**
@@ -74,6 +75,15 @@ export interface FlowNode {
   type: FlowNodeType;
   label: string;
   endOutcome?: string[] | null;
+  /** START nodes only: who or what begins the flow. */
+  startKind?: 'actor' | 'timer' | 'system' | null;
+  actor?: string | null;
+  /** POLICY nodes only, all optional: a title drawn in place of the label, and who or what triggers the policy. */
+  title?: string | null;
+  policyKind?: 'actor' | 'timer' | null;
+  timer?: string | null;
+  /** Id of the server's lane band. Absent/null for older models or no lanes. */
+  lane?: string | null;
   system: string | null;
   service: string | null;
   sourceRef: SourceRef;
@@ -99,6 +109,20 @@ export interface FlowSystemGroupView {
   bounds: FlowBounds;
 }
 
+/** A full-width horizontal band, positioned and ordered by the server. */
+export interface FlowLane {
+  id: string;
+  kind: "system" | "service";
+  label: string;
+  /** The system of a service band; null otherwise. */
+  system: string | null;
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  order: number;
+}
+
 export interface LayoutMetadata {
   engine: string;
   direction: Direction;
@@ -121,6 +145,8 @@ export interface FlowViewModel {
   layout: LayoutMetadata | null;
   bounds: FlowBounds | null;
   systemGroups: FlowSystemGroupView[] | null;
+  /** Bands top to bottom; absent/null for older models or no lanes. */
+  lanes?: FlowLane[] | null;
 }
 
 /**
@@ -143,6 +169,7 @@ export function createFlowViewModel(
     layout: null,
     bounds: null,
     systemGroups: null,
+    lanes: null,
     ...partial
   };
 }

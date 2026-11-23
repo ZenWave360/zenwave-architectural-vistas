@@ -3,6 +3,11 @@
   "version": "0.1.0",
   "description": "Installable ZenWave Astro components for EventCatalog projects",
   "type": "module",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/ZenWave360/zenwave-architectural-vistas.git",
+    "directory": "packages/eventcatalog-components"
+  },
   "files": [
     "components",
     "README.md"

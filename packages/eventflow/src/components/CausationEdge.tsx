@@ -1,26 +1,9 @@
 import { BaseEdge, EdgeLabelRenderer, EdgeProps, getBezierPath } from 'reactflow';
 import { FlowEdgeType } from '../types/FlowViewModel';
+import { getEdgeDasharray, getEdgeStroke } from '../edgeStyle';
 
 interface EventFlowEdgeData {
   edgeType?: FlowEdgeType;
-}
-
-function getEdgeStroke(edgeType: FlowEdgeType | undefined): string {
-  if (edgeType === FlowEdgeType.ERROR) return '#dc2626';
-  if (edgeType === FlowEdgeType.CALL) return '#2563eb';
-  if (edgeType === FlowEdgeType.OUTCOME_HANDLER) return '#ea580c';
-  if (edgeType === FlowEdgeType.TRIGGER) return '#7c3aed';
-  if (edgeType === FlowEdgeType.CONDITIONAL) return '#0f766e';
-  return '#64748b';
-}
-
-function getEdgeDasharray(edgeType: FlowEdgeType | undefined): string | undefined {
-  if (edgeType === FlowEdgeType.CALL) return '14 8';
-  if (edgeType === FlowEdgeType.OUTCOME_HANDLER) return '3 6';
-  if (edgeType === FlowEdgeType.TRIGGER) return '6 4';
-  if (edgeType === FlowEdgeType.CONDITIONAL) return '10 6';
-  if (edgeType === FlowEdgeType.ERROR) return '3 3';
-  return undefined;
 }
 
 export function CausationEdge(props: EdgeProps<EventFlowEdgeData>) {

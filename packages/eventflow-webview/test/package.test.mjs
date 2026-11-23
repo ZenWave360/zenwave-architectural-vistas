@@ -10,7 +10,7 @@ const packageDirectory = fileURLToPath(new URL('../', import.meta.url));
 const webviewDirectory = path.join(packageDirectory, 'webview');
 const manifest = JSON.parse(readFileSync(path.join(packageDirectory, 'package.json'), 'utf8'));
 const appProtocolSource = readFileSync(
-  path.resolve(packageDirectory, '../../apps/eventflow-webview/src/protocol.ts'),
+  path.resolve(packageDirectory, '../../packages/eventflow-page/src/protocol.ts'),
   'utf8',
 );
 

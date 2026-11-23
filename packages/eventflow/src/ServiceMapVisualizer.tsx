@@ -5,6 +5,9 @@ import ReactFlow, {
   Controls,
   Node,
   NodeChange,
+  useNodesInitialized,
+  useReactFlow,
+  useStore,
 } from 'reactflow';
 import 'reactflow/dist/style.css';
 import './styles/eventflow.css';
@@ -23,6 +26,8 @@ import { ServiceNodeType } from './types/ServiceViewModel';
 
 export interface ServiceMapVisualizerProps {
   serviceViewModel: ServiceViewModel;
+  /** A host should send something stable for one diagram, such as the document URI and the flow name. */
+  diagramId?: string;
   theme?: 'light' | 'dark';
   editable?: boolean;
   displaySettings?: DiagramDisplaySettings;
@@ -236,7 +241,69 @@ function mergeNodesIntoServiceViewModel(
   };
 }
 
-export function ServiceMapVisualizer({
+/**
+ * React Flow fits once, and its store size is 500 while the pane's width or height is 0.
+ * If that pane had no real size, fit again once its client box and the store agree.
+ */
+function OpeningFit() {
+  const { fitView } = useReactFlow();
+  const domNode = useStore((state) => state.domNode);
+  const storeWidth = useStore((state) => state.width);
+  const storeHeight = useStore((state) => state.height);
+  const nodesInitialized = useNodesInitialized();
+  const zoomReady = useStore((state) => state.d3Zoom != null && state.d3Selection != null);
+  const framed = useRef(false);
+  const sawEmptyPane = useRef(false);
+  const [realSize, setRealSize] = useState<{ width: number; height: number } | null>(null);
+
+  useEffect(() => {
+    if (!domNode) {
+      return;
+    }
+
+    const readSize = () => {
+      const width = domNode.clientWidth;
+      const height = domNode.clientHeight;
+      if (width <= 0 || height <= 0) {
+        sawEmptyPane.current = true;
+        return;
+      }
+      if (!sawEmptyPane.current || framed.current) {
+        return;
+      }
+      setRealSize((current) => (
+        current && current.width === width && current.height === height ? current : { width, height }
+      ));
+    };
+
+    readSize();
+    const observer = new ResizeObserver(readSize);
+    observer.observe(domNode);
+    return () => observer.disconnect();
+  }, [domNode]);
+
+  useEffect(() => {
+    if (framed.current || !sawEmptyPane.current || !realSize || !domNode || !zoomReady || !nodesInitialized) {
+      return;
+    }
+
+    const renderer = domNode.querySelector('.react-flow__renderer');
+    const box = renderer instanceof HTMLElement ? renderer : domNode;
+    if (box.clientWidth <= 0 || box.clientHeight <= 0) {
+      return;
+    }
+    if (box.offsetWidth !== storeWidth || box.offsetHeight !== storeHeight) {
+      return;
+    }
+    if (fitView()) {
+      framed.current = true;
+    }
+  }, [domNode, fitView, nodesInitialized, realSize, storeHeight, storeWidth, zoomReady]);
+
+  return null;
+}
+
+function ServiceMapCanvas({
   serviceViewModel,
   theme = 'light',
   editable = false,
@@ -275,6 +342,7 @@ export function ServiceMapVisualizer({
 
   return (
     <div className={`eventflow-visualizer service-map-visualizer ${theme === 'dark' ? 'theme-dark' : ''}`}>
+      {/* Systems has no start node, so the opening view stays React Flow's centred fit. */}
       <ReactFlow
         fitView
         nodes={nodes}
@@ -291,11 +359,18 @@ export function ServiceMapVisualizer({
         minZoom={0.15}
         maxZoom={1.5}
       >
+        <OpeningFit />
         <Background gap={24} size={1} color={theme === 'dark' ? '#334155' : '#d6d3d1'} />
         <Controls showInteractive={false} />
       </ReactFlow>
     </div>
   );
+}
+
+/** Remounts the canvas when `diagramId` changes so the opening fit runs again. With no id, one mount fits once. */
+export function ServiceMapVisualizer(props: ServiceMapVisualizerProps) {
+  const frameKey = props.diagramId === undefined ? 'open' : `id:${props.diagramId}`;
+  return <ServiceMapCanvas key={frameKey} {...props} />;
 }
 
 export default ServiceMapVisualizer;

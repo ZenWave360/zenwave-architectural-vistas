@@ -20,9 +20,12 @@ pnpm install
 | `packages/eventflow` | `@zenwave360/vistas-eventflow` | Yes |
 | `packages/eventcatalog-components` | `@zenwave360/eventcatalog-components` | Yes |
 | `packages/eventflow-webview` | `@zenwave360/vistas-eventflow-webview` | Yes. The page built by `apps/eventflow-webview`, packaged for IDE hosts. |
-| `apps/eventflow-webview` | `@zenwave360/vistas-eventflow-webview-app` | No. Private host used to build the IntelliJ static bundle. |
+| `apps/eventflow-webview` | `@zenwave360/vistas-eventflow-webview-app` | No. Private host used to build the IntelliJ static bundle (the minimal page). |
+| `apps/eventflow-toolbar-webview` | `@zenwave360/vistas-eventflow-toolbar-webview-app` | No. Private host of the page with a Flow / Systems selector, for VS Code. |
+| `apps/zfl-editor-harness` | `@zenwave360/vistas-zfl-editor-harness` | No. Private browser harness of the visual ZFL editor (`pnpm dev:editor`, see docs/dev-editor.md). |
+| `packages/eventflow-page` | `@zenwave360/vistas-eventflow-page` | No. Source-only: the diagram page component and host bridge both apps embed. |
 
-See [REPOSITORY_SCOPE.md](./REPOSITORY_SCOPE.md) for what belongs in this repository.
+See [REPOSITORY_SCOPE.md](https://github.com/ZenWave360/zenwave-specs/blob/main/zenwave-architectural-vistas/REPOSITORY_SCOPE.md) for what belongs in this repository.
 
 ## Feature development
 
@@ -198,4 +201,4 @@ These are repository and npm settings, not per-release steps:
 
 - Do not run `changeset publish` or `npm publish` from a laptop for a normal release. That would publish `latest` and skip the human gateway.
 - Do not edit versions in `package.json` to perform a release.
-- Do not put IntelliJ plugin code, ZFL/ZDL parsers, or EventCatalog core in this repository. See [REPOSITORY_SCOPE.md](./REPOSITORY_SCOPE.md).
+- Do not put IntelliJ plugin code, ZFL/ZDL parsers, or EventCatalog core in this repository. See [REPOSITORY_SCOPE.md](https://github.com/ZenWave360/zenwave-specs/blob/main/zenwave-architectural-vistas/REPOSITORY_SCOPE.md).

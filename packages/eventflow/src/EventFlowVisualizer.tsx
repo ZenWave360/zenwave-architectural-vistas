@@ -12,9 +12,10 @@ import ReactFlow, {
   Controls,
   Edge,
   MarkerType,
-  MiniMap,
   Node,
   NodeChange,
+  useReactFlow,
+  useStore,
 } from 'reactflow';
 import 'reactflow/dist/style.css';
 import './styles/eventflow.css';
@@ -24,15 +25,26 @@ import { EventNode } from './components/EventNode';
 import { PolicyNode } from './components/PolicyNode';
 import { StartNode } from './components/StartNode';
 import { EndNode } from './components/EndNode';
+import { ReadModelNode } from './components/ReadModelNode';
+import { LaneBands } from './components/LaneBands';
+import { getNodeTypeKey } from './nodeTypeKey';
 import { OutcomeNode } from './components/OutcomeNode';
 import { CausationEdge } from './components/CausationEdge';
 import { DiagramDisplaySettings, humanizeLabel } from './labelFormatting';
+import { readPolicyDrawing } from './policyDrawing';
+import {
+  computeInitialViewport,
+  FLOW_MAX_ZOOM,
+  FLOW_MIN_ZOOM,
+  type ViewportNode,
+} from './initialViewport';
 
 import {
   Dimensions,
   FlowBounds,
   FlowEdgeType,
   FlowNode,
+  FlowLane,
   FlowNodeType,
   FlowViewModel,
   Point,
@@ -41,6 +53,8 @@ import {
 
 export interface EventFlowVisualizerProps {
   flowViewModel: FlowViewModel;
+  /** A host should send something stable for one diagram, such as the document URI and the flow name. */
+  diagramId?: string;
   theme?: 'light' | 'dark';
   editable?: boolean;
   displaySettings?: EventFlowDisplaySettings;
@@ -57,7 +71,12 @@ interface EventFlowNodeData {
   endOutcomeLabels?: string[];
   sourceRef?: SourceRef;
   title?: string;
+  startKind?: string | null;
+  actor?: string | null;
   synthetic?: boolean;
+  policyTitle?: string;
+  policyKind?: 'actor' | 'timer';
+  policyDetail?: string;
   policyLabelParts?: {
     when: string;
     condition: string;
@@ -109,31 +128,20 @@ function getRenderedPosition(node: FlowNode, renderedDimensions: Dimensions): Po
   };
 }
 
-function getNodeType(nodeType: FlowNodeType): string {
-  switch (nodeType) {
-    case FlowNodeType.START:
-      return 'startNode';
-    case FlowNodeType.COMMAND:
-      return 'commandNode';
-    case FlowNodeType.EVENT:
-      return 'eventNode';
-    case FlowNodeType.POLICY:
-      return 'policyNode';
-    case FlowNodeType.END:
-      return 'endNode';
-    default:
-      return 'eventNode';
+/** The inverse of getRenderedPosition: where the server has the node, given where it is drawn. */
+function getServerPosition(node: FlowNode, drawn: Point): Point {
+  if (!node.dimensions) {
+    return { x: drawn.x, y: drawn.y };
   }
+  const renderedDimensions = getRenderedDimensions(node);
+  return {
+    x: drawn.x + ((renderedDimensions.width - node.dimensions.width) / 2),
+    y: drawn.y + ((renderedDimensions.height - node.dimensions.height) / 2),
+  };
 }
 
-function getNodeColor(nodeType?: string): string {
-  if (nodeType === 'startNode') return '#22c55e';
-  if (nodeType === 'commandNode') return '#3b82f6';
-  if (nodeType === 'eventNode') return '#f97316';
-  if (nodeType === 'policyNode') return '#a855f7';
-  if (nodeType === 'endNode') return '#ef4444';
-  if (nodeType === 'outcomeNode') return '#e2e8f0';
-  return '#cbd5e1';
+function getNodeType(nodeType: FlowNodeType): string {
+  return getNodeTypeKey(nodeType);
 }
 
 function getEdgeMarkerColor(edgeType: FlowEdgeType): string {
@@ -191,6 +199,8 @@ function toEditableReactFlowNodes(
       ?.filter((outcomeLabel) => outcomeLabel != null && outcomeLabel.trim().length > 0)
       .map((outcomeLabel) => shouldHumanizeLabels ? humanizeLabel(outcomeLabel) : outcomeLabel);
 
+    const policyDrawing = node.type === FlowNodeType.POLICY ? readPolicyDrawing(node) : undefined;
+
     return [{
       id: node.id,
       type: getNodeType(node.type),
@@ -201,7 +211,12 @@ function toEditableReactFlowNodes(
         endOutcomeLabels,
         sourceRef: node.sourceRef,
         title: getNodeTitle(node.system, node.service),
-        policyLabelParts: node.type === FlowNodeType.POLICY ? getPolicyLabelParts(label) : undefined,
+        startKind: node.type === FlowNodeType.START ? node.startKind : undefined,
+        actor: node.type === FlowNodeType.START ? node.actor : undefined,
+        policyLabelParts: node.type === FlowNodeType.POLICY && !policyDrawing?.title ? getPolicyLabelParts(label) : undefined,
+        policyTitle: policyDrawing?.title,
+        policyKind: policyDrawing?.kind,
+        policyDetail: policyDrawing?.detail,
       },
       style: {
         width: renderedDimensions.width,
@@ -434,6 +449,115 @@ function getFlowBounds(nodes: FlowNode[], fallback: FlowBounds | null): FlowBoun
   };
 }
 
+function styleLength(value: string | number | undefined): number {
+  return typeof value === 'number' && Number.isFinite(value) && value > 0 ? value : 0;
+}
+
+function viewportNodeFromReactNode(node: EventFlowReactNode, start: boolean): ViewportNode | null {
+  const style = node.style as { width?: number | string; height?: number | string } | undefined;
+  const width = styleLength(style?.width);
+  const height = styleLength(style?.height);
+
+  if (width === 0 || height === 0) {
+    return null;
+  }
+
+  return {
+    x: node.position.x,
+    y: node.position.y,
+    width,
+    height,
+    start,
+  };
+}
+
+/**
+ * Rectangles the opening viewport fits. Real nodes stay in view-model order, so the first one marked
+ * start is the first START the view model lists that has a position. Outcome chips are appended and
+ * are not starts; they only extend the bounds.
+ */
+function toOpeningViewportNodes(
+  reactNodes: readonly EventFlowReactNode[],
+  syntheticNodes: readonly EventFlowReactNode[],
+): ViewportNode[] {
+  const viewportNodes: ViewportNode[] = [];
+
+  for (const node of reactNodes) {
+    const viewportNode = viewportNodeFromReactNode(node, node.type === 'startNode');
+    if (viewportNode) {
+      viewportNodes.push(viewportNode);
+    }
+  }
+
+  for (const node of syntheticNodes) {
+    const viewportNode = viewportNodeFromReactNode(node, false);
+    if (viewportNode) {
+      viewportNodes.push(viewportNode);
+    }
+  }
+
+  return viewportNodes;
+}
+
+/**
+ * Frames the opening viewport once, the first time the pane's own width and height are both positive.
+ * React Flow's store reports 500 for a zero width or height, so a hidden pane must not count as framed.
+ * The canvas remounts when `diagramId` changes. Adding, removing or reordering nodes does not.
+ */
+function OpeningViewport({ nodes }: { nodes: readonly ViewportNode[] }) {
+  const { setViewport } = useReactFlow();
+  const domNode = useStore((state) => state.domNode);
+  const zoomReady = useStore((state) => state.d3Zoom != null && state.d3Selection != null);
+  const framed = useRef(false);
+  const [paneSize, setPaneSize] = useState({ width: 0, height: 0 });
+
+  useEffect(() => {
+    if (!domNode) {
+      return;
+    }
+
+    const readSize = () => {
+      if (framed.current) {
+        return;
+      }
+
+      const width = domNode.clientWidth;
+      const height = domNode.clientHeight;
+      setPaneSize((current) => (
+        current.width === width && current.height === height ? current : { width, height }
+      ));
+    };
+
+    readSize();
+    const observer = new ResizeObserver(readSize);
+    observer.observe(domNode);
+    return () => observer.disconnect();
+  }, [domNode]);
+
+  useEffect(() => {
+    if (framed.current || !zoomReady || paneSize.width <= 0 || paneSize.height <= 0) {
+      return;
+    }
+
+    const viewport = computeInitialViewport({
+      nodes,
+      viewportWidth: paneSize.width,
+      viewportHeight: paneSize.height,
+      minZoom: FLOW_MIN_ZOOM,
+      maxZoom: FLOW_MAX_ZOOM,
+    });
+
+    if (!viewport) {
+      return;
+    }
+
+    setViewport(viewport);
+    framed.current = true;
+  }, [nodes, paneSize.height, paneSize.width, setViewport, zoomReady]);
+
+  return null;
+}
+
 function mergeEditableNodesIntoFlowViewModel(
   flowViewModel: FlowViewModel,
   reactFlowNodes: Node<EventFlowNodeData>[]
@@ -449,11 +573,8 @@ function mergeEditableNodesIntoFlowViewModel(
 
     return {
       ...node,
-      position: {
-        x: editableNode.position.x,
-        y: editableNode.position.y,
-      } satisfies Point,
-      dimensions: getNodeDimensions(editableNode, node.dimensions),
+      position: getServerPosition(node, editableNode.position),
+      dimensions: node.dimensions ?? getNodeDimensions(editableNode, node.dimensions),
     };
   });
 
@@ -464,7 +585,29 @@ function mergeEditableNodesIntoFlowViewModel(
   };
 }
 
-export function EventFlowVisualizer({
+/** The lane each node is drawn in, found by the centre of its server position. */
+function laneOfNodes(flowViewModel: FlowViewModel): Map<string, string> {
+  const result = new Map<string, string>();
+  for (const node of flowViewModel.nodes) {
+    if (!node.position || !node.dimensions) continue;
+    const cx = node.position.x + node.dimensions.width / 2;
+    const cy = node.position.y + node.dimensions.height / 2;
+    const lane = (flowViewModel.lanes ?? []).find(
+      (l) => cx >= l.x && cx <= l.x + l.width && cy >= l.y && cy <= l.y + l.height
+    );
+    if (lane) result.set(node.id, lane.id);
+  }
+  return result;
+}
+
+/** The empty space the server left under a lane, so a re-stacked set of lanes keeps its spacing. */
+function laneGapAfter(sortedLanes: readonly FlowLane[], laneId: string): number {
+  const index = sortedLanes.findIndex((lane) => lane.id === laneId);
+  const next = sortedLanes[index + 1];
+  return next ? Math.max(0, next.y - (sortedLanes[index].y + sortedLanes[index].height)) : 0;
+}
+
+function EventFlowCanvas({
   flowViewModel,
   theme = 'light',
   editable = true,
@@ -480,6 +623,7 @@ export function EventFlowVisualizer({
     eventNode: EventNode,
     policyNode: PolicyNode,
     endNode: EndNode,
+    readModelNode: ReadModelNode,
     outcomeNode: OutcomeNode,
   }), []);
 
@@ -496,8 +640,26 @@ export function EventFlowVisualizer({
     () => toEditableReactFlowNodes(flowViewModel, displaySettings, highlightedNodeIdSet),
     [displaySettings, flowViewModel, highlightedNodeIdSet]
   );
+  const openingNodes = useMemo(() => {
+    const synthetic = buildSyntheticOutcomeRouting(flowViewModel, initialNodeState.nodes, displaySettings);
+    return [
+      ...toOpeningViewportNodes(initialNodeState.nodes, synthetic.nodes),
+      ...(flowViewModel.lanes ?? []).map((lane) => ({ ...lane, start: false })),
+    ];
+  }, [displaySettings, flowViewModel, initialNodeState.nodes]);
   const [nodes, setNodes] = useState<EventFlowReactNode[]>(initialNodeState.nodes);
   const latestFlowViewModelRef = useRef(flowViewModel);
+
+  // Moving a lane moves the nodes inside it, and a node cannot be dragged out of its lane.
+  const [laneOffsets, setLaneOffsets] = useState<Record<string, number>>({});
+  const laneOffsetsRef = useRef(laneOffsets);
+  laneOffsetsRef.current = laneOffsets;
+  const laneOfNode = useMemo(() => laneOfNodes(flowViewModel), [flowViewModel]);
+  const movedLanes = useMemo(
+    () => (flowViewModel.lanes ?? []).map((lane) => ({ ...lane, y: lane.y + (laneOffsets[lane.id] ?? 0) })),
+    [flowViewModel.lanes, laneOffsets]
+  );
+
 
   useEffect(() => {
     latestFlowViewModelRef.current = flowViewModel;
@@ -516,10 +678,16 @@ export function EventFlowVisualizer({
     [displaySettings, flowViewModel, nodes]
   );
 
-  const renderNodes = useMemo(
-    () => [...nodes, ...syntheticOutcomeRouting.nodes],
-    [nodes, syntheticOutcomeRouting.nodes]
-  );
+  const renderNodes = useMemo(() => {
+    const lanesById = new Map(movedLanes.map((lane) => [lane.id, lane]));
+    const confined = nodes.map((node) => {
+      const lane = lanesById.get(laneOfNode.get(node.id) ?? '');
+      return lane
+        ? { ...node, extent: [[lane.x, lane.y], [lane.x + lane.width, lane.y + lane.height]] as [[number, number], [number, number]] }
+        : node;
+    });
+    return [...confined, ...syntheticOutcomeRouting.nodes];
+  }, [laneOfNode, movedLanes, nodes, syntheticOutcomeRouting.nodes]);
 
   const edges = useMemo<Edge[]>(() => {
     const visibleNodeIds = new Set(renderNodes.map((node) => node.id));
@@ -574,13 +742,55 @@ export function EventFlowVisualizer({
     });
   }, []);
 
+  // With lanes the layout is always automatic and positions are never saved (EF-R24): the nodes move on the
+  // canvas only, to follow the arrows, and a new layout puts them back.
+  const hasLanes = !!flowViewModel.lanes?.length;
+
   const handleNodeDragStop = useCallback((
     _event: React.MouseEvent,
     _node: EventFlowReactNode,
     nextNodes: EventFlowReactNode[]
   ) => {
+    if (hasLanes) return;
     emitUpdatedFlowViewModel(nextNodes);
-  }, [emitUpdatedFlowViewModel]);
+  }, [emitUpdatedFlowViewModel, hasLanes]);
+
+  useEffect(() => {
+    setLaneOffsets({});
+  }, [flowViewModel]);
+
+  const shiftLanes = useCallback((deltas: Record<string, number>) => {
+    setLaneOffsets((current) => {
+      const next = { ...current };
+      for (const [laneId, delta] of Object.entries(deltas)) next[laneId] = (next[laneId] ?? 0) + delta;
+      return next;
+    });
+    setNodes((currentNodes) => currentNodes.map((node) => {
+      const delta = deltas[laneOfNode.get(node.id) ?? ''];
+      return delta ? { ...node, position: { x: node.position.x, y: node.position.y + delta } } : node;
+    }));
+  }, [laneOfNode]);
+
+  const handleMoveLane = useCallback((laneId: string, deltaY: number) => {
+    shiftLanes({ [laneId]: deltaY });
+  }, [shiftLanes]);
+
+  // On release the lanes go back to a stack, in the order of where they were left, with their nodes.
+  const handleMoveLaneEnd = useCallback(() => {
+    const original = [...(flowViewModel.lanes ?? [])].sort((a, b) => a.y - b.y);
+    if (original.length < 2) return;
+    const current = original.map((lane) => ({ lane, y: lane.y + (laneOffsetsRef.current[lane.id] ?? 0) }));
+    const reordered = [...current].sort((a, b) => (a.y + a.lane.height / 2) - (b.y + b.lane.height / 2));
+    let nextY = original[0].y;
+    const deltas: Record<string, number> = {};
+    reordered.forEach(({ lane, y }, index) => {
+      const gap = index === 0 ? 0 : laneGapAfter(original, reordered[index - 1].lane.id);
+      if (index > 0) nextY += gap;
+      deltas[lane.id] = nextY - y;
+      nextY += lane.height;
+    });
+    shiftLanes(deltas);
+  }, [flowViewModel.lanes, shiftLanes]);
 
   const handleNodeClick = useCallback((_event: React.MouseEvent, node: EventFlowReactNode) => {
     if (onNodeClick && !node.data.synthetic && node.data.sourceRef) {
@@ -609,17 +819,25 @@ export function EventFlowVisualizer({
         onNodeDragStop={handleNodeDragStop}
         onNodeClick={handleNodeClick}
         onSelectionChange={handleSelectionChange}
-        fitView
+        minZoom={FLOW_MIN_ZOOM}
+        maxZoom={FLOW_MAX_ZOOM}
         nodesDraggable={editable}
         nodesConnectable={false}
         elementsSelectable
       >
+        {hasLanes && <LaneBands lanes={movedLanes} onMoveLane={editable ? handleMoveLane : undefined} onMoveLaneEnd={handleMoveLaneEnd} />}
+        <OpeningViewport nodes={openingNodes} />
         <Background gap={24} color={theme === 'dark' ? '#334155' : '#e2e8f0'} />
         <Controls />
-        <MiniMap nodeColor={(node) => getNodeColor(node.type)} />
       </ReactFlow>
     </div>
   );
+}
+
+/** Remounts the canvas when `diagramId` changes so the opening frame runs again. With no id, one mount frames once. */
+export function EventFlowVisualizer(props: EventFlowVisualizerProps) {
+  const frameKey = props.diagramId === undefined ? 'open' : `id:${props.diagramId}`;
+  return <EventFlowCanvas key={frameKey} {...props} />;
 }
 
 export default EventFlowVisualizer;

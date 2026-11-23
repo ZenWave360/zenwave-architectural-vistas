@@ -1,0 +1,63 @@
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+html,
+body {
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+}
+
+#root {
+  width: 100%;
+  height: 100%;
+}
+
+.loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100vh;
+  font-size: 16px;
+  color: #666;
+}
+
+/* Layout of EventFlowPage when an application passes it chrome: the chrome on top, the diagram filling the rest.
+   The chrome sits at the end of its row, leaving the leading side free for a control added beside it. */
+.eventflow-page {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  height: 100%;
+}
+
+.eventflow-page__toolbar {
+  display: flex;
+  flex: 0 0 auto;
+  justify-content: flex-end;
+  align-items: center;
+  min-width: 0;
+}
+
+.eventflow-page__diagram {
+  flex: 1 1 auto;
+  min-height: 0;
+  position: relative;
+}
+
+/* The status bar, when an application passes one: a line below the diagram that never grows. */
+.eventflow-page__status {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  min-width: 0;
+  padding: 2px 8px;
+  border-top: 1px solid var(--vscode-panel-border, #d4d4d8);
+  background: var(--vscode-statusBar-background, var(--vscode-editor-background, #ffffff));
+  color: var(--vscode-statusBar-foreground, var(--vscode-descriptionForeground, #6b7280));
+  font-size: 11px;
+}

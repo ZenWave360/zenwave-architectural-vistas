@@ -2,7 +2,11 @@
 
 Component-oriented visualization packages for ZenWave architecture models and their host integrations.
 
-See [Repository Purpose and Scope](./REPOSITORY_SCOPE.md) for the project goals, boundaries, and planned contents. See [CONTRIBUTING.md](./CONTRIBUTING.md) for feature development and how to release one package or all pending packages.
+See [Repository Purpose and Scope](https://github.com/ZenWave360/zenwave-specs/blob/main/zenwave-architectural-vistas/REPOSITORY_SCOPE.md) for the project goals, boundaries, and planned contents. See [CONTRIBUTING.md](./CONTRIBUTING.md) for feature development and how to release one package or all pending packages.
+
+For debugging rendering against real DSL output, see [docs/dev-views.md](./docs/dev-views.md) (`pnpm dev:views`).
+
+For the standalone visual ZFL editor harness, see [docs/dev-editor.md](./docs/dev-editor.md) (`pnpm dev:editor`).
 
 ## Workspace
 

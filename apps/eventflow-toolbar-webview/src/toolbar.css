@@ -1,0 +1,139 @@
+/* Colours follow the VS Code theme when the host provides it, with plain fallbacks elsewhere.
+   The bar is full width and the controls sit at its end, so a variant selector can be added beside them. */
+.eventflow-toolbar {
+  display: flex;
+  flex: 1 1 auto;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  padding: 4px 8px;
+  border-bottom: 1px solid var(--vscode-panel-border, #d4d4d8);
+  background: var(--vscode-editor-background, #ffffff);
+  color: var(--vscode-foreground, #1f2937);
+  font-size: 12px;
+}
+
+.view-selector {
+  display: flex;
+  flex: 0 0 auto;
+  gap: 2px;
+}
+
+.view-selector__option {
+  position: relative;
+  cursor: pointer;
+}
+
+.view-selector__option input {
+  position: absolute;
+  opacity: 0;
+  inset: 0;
+  margin: 0;
+  cursor: pointer;
+}
+
+.view-selector__option span {
+  display: block;
+  padding: 3px 12px;
+  border: 1px solid var(--vscode-button-secondaryBackground, #d4d4d8);
+  border-radius: 3px;
+}
+
+.view-selector__option input:checked + span {
+  background: var(--vscode-button-background, #2563eb);
+  border-color: var(--vscode-button-background, #2563eb);
+  color: var(--vscode-button-foreground, #ffffff);
+}
+
+.view-selector__option input:focus-visible + span {
+  outline: 1px solid var(--vscode-focusBorder, #2563eb);
+  outline-offset: 2px;
+}
+
+/* Sits to the left of the Flow / Systems selector. Hidden by not rendering it when the flow has no variants. */
+.variant-selector,
+.lanes-control {
+  display: flex;
+  flex: 0 1 auto;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  color: var(--vscode-foreground, #1f2937);
+}
+
+.variant-selector select,
+.lanes-control select {
+  font: inherit;
+  max-width: 220px;
+  color: var(--vscode-dropdown-foreground, inherit);
+  background: var(--vscode-dropdown-background, #ffffff);
+  border: 1px solid var(--vscode-dropdown-border, #d4d4d8);
+  border-radius: 3px;
+  padding: 2px 4px;
+}
+
+/* The full title of the chosen line (EF-R25): the select itself only shows its indented line. */
+.variant-selector .variant-title {
+  min-width: 0;
+  max-width: 360px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  opacity: 0.8;
+}
+
+.variant-selector select:focus-visible,
+.lanes-control select:focus-visible {
+  outline: 1px solid var(--vscode-focusBorder, #2563eb);
+  outline-offset: 2px;
+}
+
+.save-positions {
+  flex: 0 0 auto;
+  font: inherit;
+  cursor: pointer;
+  color: var(--vscode-button-secondaryForeground, inherit);
+  background: var(--vscode-button-secondaryBackground, #f4f4f5);
+  border: 1px solid var(--vscode-button-secondaryBackground, #d4d4d8);
+  border-radius: 3px;
+  padding: 2px 10px;
+}
+
+.save-positions:focus-visible {
+  outline: 1px solid var(--vscode-focusBorder, #2563eb);
+  outline-offset: 2px;
+}
+
+/* The Humanize labels toggle, at the end of the controls. */
+.humanize-toggle {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 4px;
+  cursor: pointer;
+  color: var(--vscode-foreground, #1f2937);
+}
+
+.humanize-toggle input:focus-visible {
+  outline: 1px solid var(--vscode-focusBorder, #2563eb);
+  outline-offset: 2px;
+}
+
+/* One line in the status bar: it truncates, and the tooltip carries the full text. */
+.status-message {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.status-message--failed {
+  color: var(--vscode-errorForeground, #b91c1c);
+}
+
+.save-positions:disabled {
+  cursor: default;
+  opacity: 0.55;
+}
