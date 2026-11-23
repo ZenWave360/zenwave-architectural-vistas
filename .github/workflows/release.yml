@@ -92,6 +92,8 @@ jobs:
             exit 1
           fi
 
+          # changeset status diffs against a local branch named baseBranch; the checkout is a detached commit.
+          git branch --force main origin/main
           pnpm exec changeset status --output "${RUNNER_TEMP}/changeset-status.json"
           node scripts/release-packages.mjs plan \
             --package "${PACKAGE}" \
