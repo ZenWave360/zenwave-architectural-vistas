@@ -1,6 +1,6 @@
 {
   "name": "@zenwave360/vistas-eventflow",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "React visualizers and contracts for ZenWave ZFL event-flow and service-map diagrams",
   "type": "module",
   "repository": {
